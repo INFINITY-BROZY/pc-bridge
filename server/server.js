@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const os = require('os');
 const { spawn } = require('child_process');
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const SERVER_DIR = __dirname;
 const BRIDGE_ROOT = path.resolve(SERVER_DIR, '..');
 const PUBLIC_DIR = path.join(SERVER_DIR, 'public');
@@ -30,7 +30,8 @@ const DEFAULT_CONFIG = {
   maxOutputBytes: 300000,
   defaultTimeoutSec: 180,
   maxTimeoutSec: 900,
-  blockDangerousCommands: true
+  blockDangerousCommands: true,
+  fullPcAccess: false
 };
 
 const config = loadConfig();
@@ -74,6 +75,7 @@ function loadConfig() {
   cfg.maxOutputBytes = clamp(Number(cfg.maxOutputBytes) || DEFAULT_CONFIG.maxOutputBytes, 10000, 5000000);
   cfg.defaultTimeoutSec = clamp(Number(cfg.defaultTimeoutSec) || DEFAULT_CONFIG.defaultTimeoutSec, 5, 900);
   cfg.maxTimeoutSec = clamp(Number(cfg.maxTimeoutSec) || DEFAULT_CONFIG.maxTimeoutSec, cfg.defaultTimeoutSec, 1800);
+  cfg.fullPcAccess = cfg.fullPcAccess === true;
 
   const rawWorkspace = String(cfg.workspace || 'workspace');
   cfg.workspace = path.isAbsolute(rawWorkspace)
@@ -114,9 +116,14 @@ function samePath(a, b) {
     : na === nb;
 }
 
+function isOutside(child, parent) {
+  const rel = path.relative(parent, child);
+  return rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel);
+}
+
 function isInside(child, parent) {
   const rel = path.relative(parent, child);
-  return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
+  return Boolean(rel) && !isOutside(child, parent);
 }
 
 function normalizeWorkspaceInput(input) {
@@ -206,12 +213,25 @@ function prepareWorkspace(abs) {
   }
 }
 
-function persistWorkspace(abs) {
+function persistConfig(patch) {
   const current = readJsonSafe(CONFIG_PATH, {});
-  const next = { ...current, workspace: abs };
+  const next = { ...current, ...patch };
   const tmp = CONFIG_PATH + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n', 'utf8');
   fs.renameSync(tmp, CONFIG_PATH);
+}
+
+function persistWorkspace(abs) {
+  persistConfig({ workspace: abs });
+}
+
+function setFullPcAccess(enabled) {
+  const next = Boolean(enabled);
+  if (next !== config.fullPcAccess) {
+    persistConfig({ fullPcAccess: next });
+    config.fullPcAccess = next;
+  }
+  return config.fullPcAccess;
 }
 
 function setWorkspace(input) {
@@ -244,17 +264,67 @@ function timestamp() {
 function relToWorkspace(abs) {
   const rel = path.relative(config.workspace, abs);
   if (!rel) return '.';
+  if (isOutside(abs, config.workspace)) {
+    return config.fullPcAccess ? path.normalize(abs) : rel.split(path.sep).join('/');
+  }
   return rel.split(path.sep).join('/');
 }
 
+function expandFullPath(raw) {
+  let value = String(raw);
+  value = value.replace(/%([^%]+)%/g, (match, name) => process.env[name] || match);
+  if (value === '~' || value.startsWith('~/') || value.startsWith('~\\')) {
+    value = path.join(os.homedir(), value.slice(1));
+  }
+  return value;
+}
+
 function resolveInside(input) {
-  const raw = input == null || input === '' ? '.' : String(input);
+  let raw = input == null || input === '' ? '.' : String(input);
+  if (config.fullPcAccess) raw = expandFullPath(raw);
   const abs = path.resolve(config.workspace, raw);
-  const rel = path.relative(config.workspace, abs);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    throw new HttpError(403, `Path is outside the workspace: ${raw}`);
+  if (!config.fullPcAccess) {
+    if (isOutside(abs, config.workspace)) {
+      throw new HttpError(403, `Path is outside the workspace: ${raw}. Enable Full PC access in the dashboard or use a workspace-relative path.`);
+    }
   }
   return abs;
+}
+
+/* Keep full-PC mode from becoming a one-command way to destroy the OS. */
+function pathContains(parent, child) {
+  return samePath(parent, child) || isInside(child, parent);
+}
+
+function protectedTrees() {
+  return [
+    SERVER_DIR,
+    path.join(BRIDGE_ROOT, 'extension'),
+    path.join(BRIDGE_ROOT, 'dev'),
+    LOG_DIR,
+    process.env.SystemRoot,
+    process.env.ProgramFiles,
+    process.env['ProgramFiles(x86)'],
+    process.env.ProgramData
+  ].filter(Boolean).map((p) => path.resolve(p));
+}
+
+function assertSafeDestructiveTarget(abs, action) {
+  if (!config.fullPcAccess) return;
+  const target = path.resolve(abs);
+  const root = path.parse(target).root;
+  if (samePath(target, root)) {
+    throw new HttpError(400, `Refusing to ${action} a drive root: ${target}`);
+  }
+  const home = os.homedir();
+  if (samePath(target, home) || pathContains(target, home)) {
+    throw new HttpError(400, `Refusing to ${action} your user profile root: ${target}`);
+  }
+  for (const tree of protectedTrees()) {
+    if (pathContains(tree, target) || pathContains(target, tree)) {
+      throw new HttpError(400, `Refusing to ${action} a protected system or Bridge folder: ${target}`);
+    }
+  }
 }
 
 function formatBytes(n) {
@@ -798,6 +868,8 @@ async function toolMove(body, res, origin) {
   try {
     const from = resolveInside(body.from);
     const to = resolveInside(body.to);
+    assertSafeDestructiveTarget(from, 'move');
+    assertSafeDestructiveTarget(to, 'move');
     await fsp.mkdir(path.dirname(to), { recursive: true });
     await fsp.rename(from, to);
     const relFrom = relToWorkspace(from);
@@ -813,6 +885,7 @@ async function toolRemove(body, res, origin) {
   try {
     const abs = resolveInside(body.path);
     if (relToWorkspace(abs) === '.') throw new HttpError(400, 'Refusing to remove the workspace root');
+    assertSafeDestructiveTarget(abs, 'remove');
     const stat = await fsp.lstat(abs);
     const recursive = Boolean(body.recursive);
     if (stat.isDirectory()) {
@@ -889,6 +962,8 @@ async function handleApi(tool, req, res, origin) {
       root: BRIDGE_ROOT,
       port: PORT,
       paused,
+      fullPcAccess: config.fullPcAccess,
+      fileAccess: config.fullPcAccess ? 'full' : 'workspace',
       uptimeSec: Math.floor(process.uptime()),
       counts: { ...counters },
       time: new Date().toISOString()
@@ -897,7 +972,7 @@ async function handleApi(tool, req, res, origin) {
 
   if (tool === 'log') {
     if (!authorized(req)) return sendJson(res, 401, { ok: false, error: 'Invalid or missing token' }, origin);
-    return sendJson(res, 200, { ok: true, entries: activity.slice(0, 100), paused, counters }, origin);
+    return sendJson(res, 200, { ok: true, entries: activity.slice(0, 100), paused, fullPcAccess: config.fullPcAccess, counters }, origin);
   }
 
   if (req.method !== 'POST') {
@@ -913,6 +988,31 @@ async function handleApi(tool, req, res, origin) {
     if (typeof body.paused === 'boolean') paused = body.paused;
     logActivity({ tool: 'control', ok: true, summary: paused ? 'Bridge paused' : 'Bridge resumed' });
     return sendJson(res, 200, { ok: true, paused }, origin);
+  }
+
+  if (tool === 'access') {
+    if (typeof body.fullPcAccess !== 'boolean') {
+      return sendJson(res, 400, { ok: false, error: 'fullPcAccess must be true or false' }, origin);
+    }
+    if (body.fullPcAccess) {
+      const phrase = String(body.confirmation || '').trim().toUpperCase();
+      if (phrase !== 'FULL PC ACCESS') {
+        return sendJson(res, 400, { ok: false, error: 'Type FULL PC ACCESS to confirm.' }, origin);
+      }
+    }
+    const previous = config.fullPcAccess;
+    const fullPcAccess = setFullPcAccess(body.fullPcAccess);
+    if (previous !== fullPcAccess) {
+      logActivity({
+        tool: 'access',
+        ok: true,
+        summary: fullPcAccess ? 'FULL PC file access enabled' : 'File access limited to workspace',
+        detail: fullPcAccess
+          ? 'AI file tools can now read, write, move, and remove files outside the workspace.'
+          : 'File tools are confined to the workspace again.'
+      });
+    }
+    return sendJson(res, 200, { ok: true, fullPcAccess }, origin);
   }
 
   if (tool === 'workspace') {
@@ -937,7 +1037,7 @@ async function handleApi(tool, req, res, origin) {
     }
   }
 
-  if (paused && !['control', 'ping', 'log'].includes(tool)) {
+  if (paused && !['control', 'ping', 'log', 'access'].includes(tool)) {
     return sendJson(res, 423, { ok: false, tool, error: 'Bridge is paused. Resume it in the dashboard or extension.' }, origin);
   }
 
@@ -1036,10 +1136,16 @@ function banner() {
   console.log(line);
   console.log(`  Dashboard : http://127.0.0.1:${PORT}`);
   console.log(`  Workspace : ${config.workspace}`);
+  console.log(`  Files     : ${config.fullPcAccess ? 'FULL PC ACCESS - all drives' : 'workspace only'}`);
   console.log('  Token     : open the dashboard to copy it (server/token.txt)');
   console.log(`  Shell     : PowerShell (or cmd per request)`);
   console.log(`  Dev mode  : ${DEV ? 'ON (test page at /mock)' : 'off'}`);
   console.log(line);
+  if (config.fullPcAccess) {
+    console.log('  WARNING: full PC file access is ON. AI file tools can read/write');
+    console.log('           outside the workspace. Turn it off in the dashboard.');
+    console.log(line);
+  }
   console.log('  Keep this window open. Press Ctrl+C to stop.');
   console.log('');
 }

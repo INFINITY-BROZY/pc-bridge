@@ -18,7 +18,7 @@ extension/
   content.js         state machine: watch answer -> execute -> send result
 
 server/
-  server.js          HTTP API, path confinement, tool execution, logging
+  server.js          HTTP API, file-access policy, tool execution, logging
   public/            dashboard (HTML/CSS/JS, no framework)
 
 dev/
@@ -33,8 +33,9 @@ The extension never talks to a remote service. The only network destination is
 ## Request lifecycle
 
 1. **Prime.** When the bridge is enabled, the content script inserts a protocol
-   message into the chat. It tells the AI the workspace path, the tool format,
-   the one-operation-per-reply rule, and the safety rules.
+   message into the chat. It tells the AI the workspace path, whether full PC
+   file access is active, the tool format, the one-operation-per-reply rule, and
+   the safety rules.
 2. **Observe.** A 900 ms loop reads the newest assistant message from the DOM.
    It waits until the text is stable and the site is no longer generating.
 3. **Parse.** `shared.js` reconstructs fenced blocks (some UIs strip backticks)
@@ -62,6 +63,7 @@ Processed hashes reset when the conversation URL changes.
 - Reads `server/token.txt`, or generates 24 random bytes (48 hex characters).
 - Resolves the workspace: absolute paths are used as-is; relative paths are
   resolved from the repository root.
+- Reads `fullPcAccess` (default `false`) and logs a warning banner when it is on.
 - Creates the workspace and `<workspace>/.bridge`.
 - Listens on `127.0.0.1` only.
 
@@ -76,11 +78,12 @@ Content-Type: application/json
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/ping` | Version, OS, workspace, pause state, counters. |
-| `GET` | `/api/log` | Recent activity entries. |
+| `GET` | `/api/ping` | Version, OS, workspace, pause state, access mode, counters. |
+| `GET` | `/api/log` | Recent activity entries and access mode. |
 | `POST` | `/api/control` | Pause or resume AI access. |
+| `POST` | `/api/access` | Enable or disable full PC file access. |
 | `POST` | `/api/workspace` | Validate, create, persist, and activate a new workspace. |
-| `POST` | `/api/exec` | Run a command with a workspace-relative `cwd`. |
+| `POST` | `/api/exec` | Run a command with a relative or absolute `cwd` (mode-dependent). |
 | `POST` | `/api/write` | Create or replace a file. |
 | `POST` | `/api/read` | Read a UTF-8 file. |
 | `POST` | `/api/list` | List a directory. |
@@ -90,9 +93,11 @@ Content-Type: application/json
 | `POST` | `/api/stat` | File metadata. |
 | `POST` | `/api/open` | Open a folder in Explorer/Finder. |
 
-### Path confinement
+### File-access policy
 
-Every file tool calls `resolveInside()`:
+Every file tool calls `resolveInside()`. There are two modes.
+
+**Workspace only (default, `fullPcAccess: false`):**
 
 ```js
 const abs = path.resolve(config.workspace, input);
@@ -100,9 +105,47 @@ const rel = path.relative(config.workspace, abs);
 if (rel.startsWith('..') || path.isAbsolute(rel)) throw new HttpError(403, ...);
 ```
 
-This rejects `..` escapes and absolute paths outside the workspace. Symlinks and
-junctions are not canonicalized, so do not place untrusted links inside the
-workspace.
+This rejects `..` escapes and absolute paths outside the workspace.
+
+**Full PC access (opt-in, `fullPcAccess: true`):**
+
+```js
+raw = expandFullPath(raw);              // %USERPROFILE%, ~
+const abs = path.resolve(config.workspace, raw);
+```
+
+Absolute paths are accepted anywhere the Windows user can reach. Relative paths
+still resolve from the workspace, so existing project operations keep working.
+The UI prefix is handled by `relToWorkspace()`: paths outside the workspace are
+reported as absolute paths.
+
+In both modes, `remove` and `move` call `assertSafeDestructiveTarget()`. Full
+mode additionally refuses to touch:
+
+- drive roots (`C:\`, `D:\`),
+- the user-profile root (or any of its ancestors),
+- `Windows`, `Program Files`, `Program Files (x86)`, `ProgramData`,
+- the Bridge `server`, `extension`, `dev`, and `logs` folders.
+
+Writes in full mode still obey Windows ACLs. Symlinks and junctions are not
+canonicalized, so do not place untrusted links inside the workspace.
+
+### Full PC access state
+
+`POST /api/access` is the only mutation path:
+
+```json
+{"fullPcAccess": true, "confirmation": "FULL PC ACCESS"}
+```
+
+- Enabling requires the exact confirmation string (case-insensitive, trimmed).
+- Disabling needs no confirmation and takes effect immediately.
+- The value is persisted atomically to `config.json` before the runtime value
+  changes, so it survives restarts.
+- The AI cannot call this endpoint: bridge operations are routed through the
+  tool allowlist, and only the local dashboard sends `access`.
+- Both `ping` and `log` report the mode so the dashboard and extension stay in
+  sync.
 
 Changing the workspace is protected against:
 
@@ -121,7 +164,8 @@ The new folder is created, probed for writability, then persisted atomically to
   timeout.
 - Output capped by `maxOutputBytes`; full output is written to
   `<workspace>/.bridge/exec-*.log`.
-- `cwd` is resolved through the same workspace confinement as file tools.
+- `cwd` is resolved through the same file-access policy as file tools. In full
+  mode it may be an absolute path; otherwise it must stay inside the workspace.
 - A small denylist blocks catastrophic patterns (disk formatting, registry hive
   deletion, backup deletion, `rm -rf /`, etc.). This is a guardrail, **not a
   security boundary**.
@@ -211,5 +255,7 @@ is generated on first run and never committed.
 - The server is single-process and keeps activity only in memory for the
   dashboard; the JSONL file is the durable record.
 - `exec` inherits the user's full filesystem permissions.
+- Full PC access widens the file tools to the whole machine; the workspace
+  boundary is gone until it is disabled.
 - Only one bridge chat should be active at a time per browser.
 - Automated site use may be rate-limited or restricted by the site's terms.

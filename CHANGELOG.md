@@ -6,6 +6,43 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-25
+
+### Added
+
+- Dashboard **File access** card with a typed-confirmation switch for full PC
+  file access.
+- `POST /api/access` to persist the mode; enabling requires typing
+  `FULL PC ACCESS`, disabling is immediate.
+- Absolute paths, `%ENV%` variables, and `~` are accepted by file tools while
+  full access is on.
+- Persistent red dashboard banner, status-pill state, and extension-panel
+  warning while the mode is active.
+- The prime message tells the AI which file-access mode is active.
+- Delete/move guards for drive roots, the user-profile root, Windows, Program
+  Files, ProgramData, and Bridge application folders.
+- Smoke coverage for confirmation, enabling, outside-workspace reads/writes,
+  guarded moves/removes, disabling, and restored confinement.
+
+### Changed
+
+- `ping` and `log` report `fullPcAccess` and `fileAccess`.
+- Server startup banner shows the active file-access mode and warns when full
+  access is on.
+- `config.example.json` documents `fullPcAccess` (default `false`).
+- README, installation manual, security policy, architecture, protocol, and
+  troubleshooting guides describe the new mode.
+
+### Fixed
+
+- Path containment now handles folder names that begin with `..` (such as
+  `..notes`) correctly while still rejecting real `..` escapes.
+
+### Security
+
+- Full PC access is off by default, cannot be toggled by the AI, and is
+  persisted locally in `server/config.json`.
+
 ## [1.1.0] — 2026-10-25
 
 ### Added

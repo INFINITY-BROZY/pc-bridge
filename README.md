@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/dashboard.png" alt="PC Bridge dashboard showing server status, access token, project location, and activity log" width="920">
+  <img src="docs/assets/dashboard.png" alt="PC Bridge dashboard showing server status, access token, project location, file access, and activity log" width="920">
 </p>
 
 ---
@@ -87,6 +87,8 @@ PC Bridge gives the model hands on the machine that actually does the work:
 
 - **Real local execution** — PowerShell commands, npm/npx, git, builds, tests.
 - **File tools** — read, write, list, move, remove, stat, and open folders.
+- **Optional full-PC file access** — unlock the file tools outside the workspace
+  from the dashboard with a typed confirmation. Off by default.
 - **Automatic loop** — results are posted back to the chat without copy/paste.
 - **Changeable project location** — choose any folder from the dashboard or panel.
 - **Approval mode** — optionally approve every command before it runs.
@@ -173,12 +175,37 @@ tools plus command working directories move with it. Existing projects are not
 moved. Use **Update this chat** in the panel so an already-open conversation
 learns the new path.
 
+## Full PC access (optional)
+
+File tools stay inside the project location by default. If a task genuinely
+needs files somewhere else, you can unlock the whole PC from the dashboard:
+
+1. Open **File access**.
+2. Click **Enable full PC access**.
+3. Type **`FULL PC ACCESS`** and confirm.
+
+While it is on:
+
+- `read`, `write`, `list`, `mkdir`, `move`, `remove`, `stat`, and `open` accept
+  absolute paths anywhere your Windows user can reach.
+- Relative paths still resolve from the project location.
+- Drive roots, your user-profile root, Windows, Program Files, ProgramData, and
+  the Bridge app folders are still protected from **delete/move** operations.
+- Windows permissions still apply.
+- The setting persists in `server/config.json` until you turn it off.
+
+> **This is a real security boundary change.** Shell commands already run as your
+> Windows user, but full PC access also removes the file-tool confinement. Enable
+> it only for a chat you trust, and click **Return to workspace only** when you
+> are done. Re-send the protocol so the AI knows which mode is active.
+
 ## Security
 
 PC Bridge is a **power tool**, not a sandbox.
 
 - The server binds to `127.0.0.1` only and requires a 48-character token.
-- File tools are confined to the configured workspace; `..` escapes are rejected.
+- File tools are confined to the configured workspace **by default**; full PC
+  access is an explicit, typed-confirmation opt-in.
 - The token is generated locally and stored in `server/token.txt` (git-ignored).
 - Shell commands are screened for a small set of catastrophic patterns, but the
   AI still runs with **your Windows permissions**.
@@ -188,7 +215,8 @@ PC Bridge is a **power tool**, not a sandbox.
   dependency can try to turn a trusted chat into an attacker.
 
 **Never expose port 8787 to the internet and never commit `server/token.txt`.**
-See [SECURITY.md](SECURITY.md) for the full threat model.
+Full PC access is covered in [SECURITY.md](SECURITY.md) and the
+[installation manual](docs/INSTALL.md).
 
 ## Repository layout
 

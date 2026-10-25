@@ -108,6 +108,9 @@ async function main() {
     const read = await request('/api/read', { body: { path: 'hello.txt' } });
     assert.strictEqual(read.json.output, 'hello bridge', 'read should return written content');
 
+    const dotWrite = await request('/api/write', { body: { path: '..notes/inside.txt', content: 'dots' } });
+    assert.strictEqual(dotWrite.status, 200, 'folder names beginning with two dots must remain inside the workspace');
+
     const list = await request('/api/list', { body: { path: '.' } });
     assert.strictEqual(list.status, 200);
     assert.ok(JSON.stringify(list.json).includes('hello.txt'), 'list should include the file');
@@ -130,6 +133,43 @@ async function main() {
 
     const escape = await request('/api/write', { body: { path: '../escape.txt', content: 'nope' } });
     assert.strictEqual(escape.status, 403, 'path traversal must be rejected');
+
+    const noConfirm = await request('/api/access', { body: { fullPcAccess: true } });
+    assert.strictEqual(noConfirm.status, 400, 'full PC access must require confirmation');
+
+    const wrongConfirm = await request('/api/access', { body: { fullPcAccess: true, confirmation: 'yes' } });
+    assert.strictEqual(wrongConfirm.status, 400, 'wrong confirmation must be rejected');
+
+    const enableFull = await request('/api/access', { body: { fullPcAccess: true, confirmation: 'FULL PC ACCESS' } });
+    assert.strictEqual(enableFull.status, 200);
+    assert.strictEqual(enableFull.json.fullPcAccess, true);
+
+    const pingFull = await request('/api/ping', { method: 'GET' });
+    assert.strictEqual(pingFull.json.fullPcAccess, true, 'ping should report full access');
+
+    const outsideFile = path.join(tmp, 'outside-workspace.txt');
+    const outsideWrite = await request('/api/write', { body: { path: outsideFile, content: 'outside' } });
+    assert.strictEqual(outsideWrite.status, 200, 'full access should allow an absolute outside path');
+    assert.strictEqual(fs.readFileSync(outsideFile, 'utf8'), 'outside');
+
+    const outsideRead = await request('/api/read', { body: { path: outsideFile } });
+    assert.strictEqual(outsideRead.status, 200);
+    assert.strictEqual(outsideRead.json.output, 'outside');
+
+    const rootMove = await request('/api/move', { body: { from: outsideFile, to: path.parse(outsideFile).root } });
+    assert.strictEqual(rootMove.status, 400, 'full access must still refuse a drive root destination');
+
+    const protectedRemove = await request('/api/remove', {
+      body: { path: path.join(serverDir, 'guard-test-does-not-exist') }
+    });
+    assert.strictEqual(protectedRemove.status, 400, 'full access must still refuse the Bridge server folder');
+
+    const disableFull = await request('/api/access', { body: { fullPcAccess: false } });
+    assert.strictEqual(disableFull.status, 200);
+    assert.strictEqual(disableFull.json.fullPcAccess, false);
+
+    const blockedAgain = await request('/api/write', { body: { path: outsideFile, content: 'nope' } });
+    assert.strictEqual(blockedAgain.status, 403, 'disabling full access must restore workspace confinement');
 
     const change = await request('/api/workspace', { body: { path: secondWorkspace } });
     assert.strictEqual(change.status, 200);
@@ -161,7 +201,7 @@ async function main() {
     console.log('SMOKE TEST PASSED');
     console.log(`  port: ${port}`);
     console.log(`  workspace: ${firstWorkspace} -> ${secondWorkspace}`);
-    console.log(`  checks: auth, write, read, list, mkdir, move, stat, exec, traversal, workspace, pause`);
+    console.log(`  checks: auth, write, read, list, mkdir, move, stat, exec, traversal, full PC access, workspace, pause`);
   } finally {
     if (child) {
       child.kill();

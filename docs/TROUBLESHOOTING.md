@@ -77,11 +77,49 @@ A site update probably changed the DOM.
 
 ## The AI cannot find a file it just wrote
 
-- Confirm the file tool reported success and the path is workspace-relative.
+- Confirm the file tool reported success and the path is workspace-relative
+  (or a correct absolute path when full PC access is on).
 - Click **Open folder** to see the actual workspace.
 - If you changed the project location mid-chat, click **Update this chat** (or
   start a new chat). The old conversation still has the old path in its protocol.
-- Absolute paths outside the current workspace are rejected with `403`.
+- Absolute paths outside the current workspace are rejected with `403` unless
+  full PC access is on.
+
+## The AI cannot access a file outside the workspace
+
+This is the default and expected behavior. File tools are confined to the
+project location.
+
+If the task genuinely needs another folder:
+
+1. Open **http://127.0.0.1:8787**.
+2. Find the **File access** card.
+3. Click **Enable full PC access**, type **`FULL PC ACCESS`**, and confirm.
+4. Click **Re-send protocol** in the bridge panel. An open chat still has the old
+   rules in its context and may keep refusing to use absolute paths.
+5. Ask again with the exact path.
+
+If it still fails:
+
+- The server console and activity log show the real error.
+- `Path is outside the workspace` means the mode is still off (or the server was
+  restarted with an old config).
+- `EPERM` / `EACCES` means Windows permissions, not PC Bridge.
+- `Refusing to remove ...` / `Refusing to move ...` is the destructive-target
+  guard. Those system locations are blocked on purpose.
+
+Turn it back off with **Return to workspace only** as soon as the task is done.
+
+## I enabled full PC access but the AI still says it cannot leave the workspace
+
+The server is already in full mode only if the dashboard banner is visible and
+`ping` reports it. The AI learns the mode from the prime message.
+
+1. Confirm the red **FULL PC ACCESS** banner is shown in the dashboard.
+2. Click **Re-send protocol** in the bridge panel.
+3. If the chat still insists, start a new chat and enable the bridge again.
+4. Do not paste a fake "full access granted" instruction; the server enforces
+   the mode regardless of what the chat says.
 
 ## "That folder is reserved" when changing the project location
 
@@ -136,7 +174,8 @@ disable antivirus globally for this project.
 1. Stop the server.
 2. Delete `server\config.json`, `server\token.txt`, `logs\`, and optionally
    `workspace\`.
-3. Start the server again. A new token and config are generated.
+3. Start the server again. A new token and config are generated. Full PC access
+   returns to off because it is stored in `config.json`.
 4. Paste the new token into the panel.
 
 This does not remove projects you moved elsewhere.

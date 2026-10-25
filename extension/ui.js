@@ -384,6 +384,16 @@
     .pcb-fine { margin: 0; color: #536781; font-size: 9.5px; line-height: 1.5; padding: 0 2px; }
     .pcb-fine b { color: #7d92aa; font-weight: 600; }
     .pcb-tip { margin: 0; color: #536781; font-size: 9.5px; line-height: 1.45; }
+    .pcb-access {
+      margin: 0;
+      padding: 7px 9px;
+      border: 1px solid rgba(248,113,113,.28);
+      border-radius: 8px;
+      background: rgba(248,113,113,.08);
+      color: #fecaca;
+      font-size: 9.5px;
+      line-height: 1.45;
+    }
 
     @media (max-width: 480px) {
       .pcb-panel { right: 12px; bottom: 84px; width: calc(100vw - 24px); }
@@ -447,6 +457,7 @@
               <span class="pcb-msg" id="wsMsg">where projects are created</span>
             </div>
             <p class="pcb-tip">The folder is created if needed. If a chat is already open, the bridge can tell the AI about the new path.</p>
+            <p class="pcb-access hidden" id="accessMode">Full PC file access is ON — file tools can read and write any path. Change it in the dashboard.</p>
           </div>
 
           <div class="pcb-sec" style="gap:9px">
@@ -495,7 +506,7 @@
             <button class="pcb-btn tiny" data-act="reset">Reset session</button>
             <button class="pcb-btn tiny" data-act="dash">Dashboard ↗</button>
           </div>
-          <p class="pcb-fine">Commands run as your Windows user. File edits stay in the workspace, but <b>shell commands are not a sandbox</b>. Only bridge a chat you trust.</p>
+          <p class="pcb-fine">Commands run as your Windows user. File edits stay in the workspace by default, but <b>shell commands are not a sandbox</b>. Only bridge a chat you trust.</p>
         </div>
       </div>
 
@@ -536,6 +547,7 @@
       token: $('#token'),
       workspace: $('#workspace'),
       wsMsg: $('#wsMsg'),
+      accessMode: $('#accessMode'),
       eye: shadow.querySelector('[data-act="eye"]'),
       connMsg: $('#connMsg'),
       power: $('#power'),
@@ -589,6 +601,11 @@
 
     function setWorkspaceMessage(msg, kind) {
       setWorkspace('', msg, kind);
+    }
+
+    function setAccessMode(full) {
+      if (!el.accessMode) return;
+      el.accessMode.classList.toggle('hidden', !full);
     }
 
     function readWorkspace() {
@@ -796,6 +813,7 @@
       setConnected,
       setWorkspace,
       setWorkspaceMessage,
+      setAccessMode,
       readWorkspace,
       setSettings,
       readForm,

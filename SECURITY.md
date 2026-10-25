@@ -8,7 +8,9 @@ expose a computer to the internet.
 
 - The server listens on `127.0.0.1` only.
 - Every API call requires the local token.
-- File tools are confined to the configured workspace.
+- File tools are confined to the configured workspace **by default**.
+- Full PC file access is an explicit opt-in that requires typing a confirmation
+  phrase in the dashboard.
 - Shell commands run with the full permissions of your Windows account.
 - Never commit `server/token.txt`, `server/config.json`, or logs.
 - Never port-forward or reverse-proxy port 8787.
@@ -21,7 +23,8 @@ expose a computer to the internet.
 | --- | --- |
 | Random websites calling the API | Localhost bind, CORS allowlist, token required. |
 | Another user on the network | No network listener; loopback only. |
-| File tools escaping into personal files | `resolveInside()` rejects `..` and outside absolute paths. |
+| File tools escaping into personal files | By default `resolveInside()` rejects `..` and outside absolute paths. |
+| Accidental full-PC enablement | Off by default; typed confirmation; persistent dashboard banner; delete/move guards for OS roots. |
 | Accidental workspace selection of system folders | Drive roots, Windows, Program Files, and app folders are rejected. |
 | Token leaked in a public repository | Runtime token is git-ignored; `config.json` is git-ignored. |
 | Accidental destructive command | Denylist for formatting drives, deleting backups/hives, etc. |
@@ -33,6 +36,9 @@ expose a computer to the internet.
 - **A malicious or confused model.** It can still run arbitrary non-denylisted
   commands, read personal files through `exec`, install software, or delete
   project files.
+- **Full PC access mode.** When enabled, file tools can read and write anywhere
+  your Windows user can. The workspace boundary is gone; only OS permissions and
+  the delete/move guards remain.
 - **Prompt injection.** Text from a webpage, repository, dependency, compiler,
   or command output can try to instruct the model. Result markers reduce but do
   not eliminate this.
@@ -43,6 +49,26 @@ expose a computer to the internet.
 - **Other local users or processes.** The token file is protected by filesystem
   permissions, but a process running as your user can read it.
 - **Site terms violations or rate limits.** UI automation may be restricted.
+
+## Full PC access mode
+
+`POST /api/access` can disable workspace confinement for the file tools. It is
+disabled by default and requires the exact confirmation string `FULL PC ACCESS`.
+
+When enabled:
+
+- `read`, `write`, `list`, `mkdir`, `move`, `remove`, `stat`, and `open` accept
+  absolute paths anywhere the Windows user can reach.
+- Relative paths still resolve from the workspace.
+- Drive roots, the user-profile root, Windows, Program Files, ProgramData, and
+  the Bridge application folders are refused for **delete and move**.
+- Writes still obey Windows ACLs, but the workspace boundary no longer applies.
+- The setting is persisted in `server/config.json` across restarts.
+
+The AI cannot enable this mode by emitting a bridge block; only the local
+dashboard can call `/api/access`. The extension panel shows a red warning while
+the mode is on. Turn it off with **Return to workspace only** and re-send the
+protocol.
 
 ## Token handling
 
@@ -58,7 +84,8 @@ stored at `server/token.txt`. It is also stored in Chrome extension storage.
 ## Reporting a vulnerability
 
 Please **do not open a public issue** for a vulnerability that could let an
-attacker escape the workspace, steal tokens, or execute code without approval.
+attacker escape the workspace, enable full PC access, steal tokens, or execute
+code without approval.
 
 Use GitHub's **Security → Advisories → Report a vulnerability** flow on the
 repository. Include:
@@ -79,6 +106,7 @@ without a bug bounty.
 - [ ] Token is not in screenshots, issues, or commits.
 - [ ] Auto-run is off for unfamiliar models/repositories.
 - [ ] Workspace points at a dedicated projects folder.
+- [ ] Full PC access is off unless actively needed.
 - [ ] Port 8787 is not exposed through a tunnel, proxy, or firewall rule.
 - [ ] Dashboard is closed when not needed.
 - [ ] Server is stopped when not in use.

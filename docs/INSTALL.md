@@ -30,8 +30,9 @@ You should see `v20.x` or newer and an npm version. If the window says
 ### Security warning
 
 PC Bridge runs commands as **your Windows user**. The file tools are confined to
-the workspace, but `exec` is **not a sandbox**. Do not run it on a shared PC,
-do not expose it to the internet, and do not share your token. Read
+the workspace **by default**, but `exec` is **not a sandbox**, and full PC access
+can remove the file-tool confinement. Do not run it on a shared PC, do not expose
+it to the internet, and do not share your token. Read
 [SECURITY.md](../SECURITY.md) before use.
 
 ---
@@ -74,7 +75,7 @@ Do **not** extract only `server\` or only `extension\`; both are required.
 
 Otherwise, double-click **`START-BRIDGE.bat`**.
 
-A console window opens and says `PC BRIDGE v1.1.0 - local server`. Your browser
+A console window opens and says `PC BRIDGE v1.2.0 - local server`. Your browser
 opens the dashboard at:
 
 **http://127.0.0.1:8787**
@@ -233,6 +234,37 @@ The server will:
 Existing projects are not moved. Paths that point at a drive root, Windows,
 Program Files, or the Bridge application folders are rejected for safety.
 
+### Full PC access (advanced)
+
+By default, `read`, `write`, `list`, `mkdir`, `move`, `remove`, `stat`, and
+`open` cannot leave the project location. If a task needs files elsewhere:
+
+1. Open **http://127.0.0.1:8787**.
+2. Find **File access**.
+3. Click **Enable full PC access**.
+4. Type **`FULL PC ACCESS`** and click **Enable anyway**.
+5. Click **Re-send protocol** in the bridge panel so the AI knows the mode
+   changed.
+
+What changes:
+
+- Absolute paths anywhere your Windows user can reach are accepted.
+- Relative paths still resolve from the project location.
+- Drive roots, your user-profile root, Windows, Program Files, ProgramData, and
+  the Bridge application folders remain protected from delete/move operations.
+- The choice is saved in `server\config.json` and survives restarts.
+- Shell commands already had your Windows permissions; this only widens the file
+  tools.
+
+What to do when finished:
+
+1. Dashboard → **File access** → **Return to workspace only**.
+2. Re-send the protocol in the bridge panel.
+
+> **Read this twice:** full PC access lets the AI read personal files and write
+> or delete anything your account can. Keep it off unless the task truly needs
+> it, and never enable it for a chat or repository you do not trust.
+
 ---
 
 ## 7. Recommended settings
@@ -244,6 +276,7 @@ Program Files, or the Bridge application folders are rejected for safety.
 | **Auto-start in new chats** | On for convenience. The extension will send the protocol in a fresh chat. |
 | **Bridge on/off** | Turn off when you are not using it. |
 | **Pause AI access** | Dashboard kill switch; blocks all tools immediately. |
+| **Full PC access** | Off. Enable only for a specific task, then turn it back off. |
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PC Bridge — AI chat builds on your PC",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Bridges DeepSeek, ChatGPT, Claude or Gemini chats to a local server that can run commands and write project files on your PC.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],

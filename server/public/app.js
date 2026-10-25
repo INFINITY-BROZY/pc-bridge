@@ -13,6 +13,7 @@ const PORT = meta('bridge-port');
 
 const state = {
   paused: false,
+  fullPcAccess: false,
   revealed: false,
   running: false,
   lastPing: 0,
@@ -48,6 +49,20 @@ const els = {
   wsActions: $('#wsActions'),
   openBtn: $('#openBtn'),
   refreshBtn: $('#refreshBtn'),
+  accessCard: $('#accessCard'),
+  accessTag: $('#accessTag'),
+  accessDesc: $('#accessDesc'),
+  accessState: $('#accessState'),
+  accessStateText: $('#accessStateText'),
+  accessToggleBtn: $('#accessToggleBtn'),
+  accessConfirm: $('#accessConfirm'),
+  accessConfirmInput: $('#accessConfirmInput'),
+  accessConfirmBtn: $('#accessConfirmBtn'),
+  accessCancelBtn: $('#accessCancelBtn'),
+  accessError: $('#accessError'),
+  accessMsg: $('#accessMsg'),
+  accessBanner: $('#accessBanner'),
+  accessBannerBtn: $('#accessBannerBtn'),
   clock: $('#clock'),
   shellTag: $('#shellTag')
 };
@@ -80,6 +95,19 @@ async function api(tool, params, method = 'POST') {
 function setStatus(text, mode) {
   els.statusText.textContent = text;
   els.statusPill.dataset.state = mode || 'online';
+}
+
+function updateStatus() {
+  if (state.paused) {
+    setStatus('Paused', 'paused');
+    els.pauseBtn.textContent = 'Resume AI access';
+  } else if (state.fullPcAccess) {
+    setStatus('Full PC access', 'danger');
+    els.pauseBtn.textContent = 'Pause AI access';
+  } else {
+    setStatus('Online', 'online');
+    els.pauseBtn.textContent = 'Pause AI access';
+  }
 }
 
 function timeAgo(iso) {
@@ -153,16 +181,12 @@ async function refreshLog() {
     const entries = (data.entries || []).filter((e) => e.ts && new Date(e.ts).getTime() >= state.clearedAt);
     state.entries = entries;
     state.paused = Boolean(data.paused);
+    state.fullPcAccess = Boolean(data.fullPcAccess);
     const execs = (data.counters && data.counters.exec) || 0;
     els.cmdCount.textContent = String(execs);
     renderActivity();
-    if (data.paused) {
-      setStatus('Paused', 'paused');
-      els.pauseBtn.textContent = 'Resume AI access';
-    } else {
-      setStatus('Online', 'online');
-      els.pauseBtn.textContent = 'Pause AI access';
-    }
+    renderAccess();
+    updateStatus();
   } catch (err) {
     setStatus('Offline', 'paused');
   }
@@ -187,19 +211,15 @@ async function ping() {
     const data = await api('ping', null, 'GET');
     state.lastPing = Date.now();
     state.paused = Boolean(data.paused);
+    state.fullPcAccess = Boolean(data.fullPcAccess);
     els.uptime.textContent = fmtUptime(data.uptimeSec);
     els.nodeVer.textContent = String(data.node || '—').replace(/^v/, 'v');
     els.platform.textContent = data.platform === 'win32' ? 'Windows' : (data.platform || '—');
     state.workspace = data.workspace || state.workspace;
     els.wsPath.textContent = state.workspace;
     els.shellTag.textContent = data.shell === 'powershell' ? 'PowerShell' : 'Shell';
-    if (data.paused) {
-      setStatus('Paused', 'paused');
-      els.pauseBtn.textContent = 'Resume AI access';
-    } else {
-      setStatus('Online', 'online');
-      els.pauseBtn.textContent = 'Pause AI access';
-    }
+    renderAccess();
+    updateStatus();
     if (data.counts) els.cmdCount.textContent = String(data.counts.exec || 0);
   } catch (err) {
     setStatus('Offline', 'paused');
@@ -240,8 +260,7 @@ async function togglePause() {
   try {
     const data = await api('control', { paused: !state.paused });
     state.paused = Boolean(data.paused);
-    setStatus(state.paused ? 'Paused' : 'Online', state.paused ? 'paused' : 'online');
-    els.pauseBtn.textContent = state.paused ? 'Resume AI access' : 'Pause AI access';
+    updateStatus();
   } catch (err) {
     setStatus('Error', 'paused');
   } finally {
@@ -351,6 +370,84 @@ async function saveWorkspace() {
   }
 }
 
+/* ---------------- full PC access ---------------- */
+
+function renderAccess() {
+  const full = Boolean(state.fullPcAccess);
+  els.accessCard.classList.toggle('on', full);
+  els.accessTag.textContent = full ? 'full PC' : 'workspace';
+  els.accessTag.className = full ? 'tag danger' : 'tag';
+  els.accessDesc.textContent = full
+    ? 'AI file tools can read, write, move, and remove files anywhere on this PC.'
+    : 'AI file tools are locked to the project location.';
+  els.accessState.dataset.state = full ? 'danger' : 'safe';
+  els.accessStateText.textContent = full ? 'Full PC access is ON' : 'Workspace only';
+  els.accessToggleBtn.textContent = full ? 'Return to workspace only' : 'Enable full PC access';
+  els.accessToggleBtn.classList.toggle('danger', !full);
+  els.accessToggleBtn.classList.toggle('ghost', full);
+  els.accessBanner.classList.toggle('hidden', !full);
+}
+
+function showAccessConfirm(show) {
+  els.accessConfirm.classList.toggle('hidden', !show);
+  els.accessToggleBtn.classList.toggle('hidden', show);
+  els.accessError.classList.add('hidden');
+  if (show) {
+    els.accessConfirmInput.value = '';
+    els.accessConfirmInput.focus();
+  }
+}
+
+async function setFullAccess(enabled, confirmation) {
+  els.accessToggleBtn.disabled = true;
+  els.accessConfirmBtn.disabled = true;
+  try {
+    const data = await api('access', {
+      fullPcAccess: Boolean(enabled),
+      confirmation: confirmation || ''
+    });
+    state.fullPcAccess = Boolean(data.fullPcAccess);
+    renderAccess();
+    updateStatus();
+    showAccessConfirm(false);
+    els.accessMsg.textContent = state.fullPcAccess
+      ? 'Full PC access is ON. Click "Re-send protocol" in the bridge panel so the chat learns it can use absolute paths.'
+      : 'File access is back to workspace only. Re-send the protocol to update the chat.';
+    els.accessMsg.className = 'ws-msg good';
+    els.accessMsg.classList.remove('hidden');
+    refreshLog();
+    ping();
+  } catch (err) {
+    if (enabled) {
+      els.accessError.textContent = err.message;
+      els.accessError.classList.remove('hidden');
+    } else {
+      els.accessMsg.textContent = err.message;
+      els.accessMsg.className = 'ws-msg';
+      els.accessMsg.classList.remove('hidden');
+    }
+  } finally {
+    els.accessToggleBtn.disabled = false;
+    els.accessConfirmBtn.disabled = false;
+  }
+}
+
+function toggleAccess() {
+  if (state.fullPcAccess) setFullAccess(false);
+  else showAccessConfirm(true);
+}
+
+function confirmAccess() {
+  const phrase = els.accessConfirmInput.value.trim();
+  if (phrase.toUpperCase() !== 'FULL PC ACCESS') {
+    els.accessError.textContent = 'Type FULL PC ACCESS exactly to continue.';
+    els.accessError.classList.remove('hidden');
+    els.accessConfirmInput.focus();
+    return;
+  }
+  setFullAccess(true, phrase);
+}
+
 /* ---------------- boot ---------------- */
 
 els.runBtn.addEventListener('click', runCommand);
@@ -377,6 +474,19 @@ els.wsInput.addEventListener('keydown', (e) => {
   }
 });
 els.refreshBtn.addEventListener('click', () => { ping(); refreshLog(); });
+els.accessToggleBtn.addEventListener('click', toggleAccess);
+els.accessBannerBtn.addEventListener('click', () => setFullAccess(false));
+els.accessConfirmBtn.addEventListener('click', confirmAccess);
+els.accessCancelBtn.addEventListener('click', () => showAccessConfirm(false));
+els.accessConfirmInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    confirmAccess();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    showAccessConfirm(false);
+  }
+});
 els.clearBtn.addEventListener('click', () => {
   state.clearedAt = Date.now();
   state.entries = [];
@@ -402,6 +512,7 @@ document.addEventListener('visibilitychange', () => {
 
 els.tokenValue.textContent = '••••••••••••••••••••••••';
 els.wsPath.textContent = WORKSPACE;
+renderAccess();
 ping();
 refreshLog();
 

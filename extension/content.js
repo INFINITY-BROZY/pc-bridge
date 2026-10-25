@@ -126,6 +126,7 @@
     state.online = true;
     state.serverPaused = Boolean(info.paused);
     ui.setWorkspace(info.workspace || '');
+    ui.setAccessMode(Boolean(info.fullPcAccess));
 
     if (state.serverPaused && !state.serverPauseNoticed) {
       state.serverPauseNoticed = true;

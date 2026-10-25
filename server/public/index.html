@@ -36,6 +36,12 @@
     </div>
   </header>
 
+  <div class="access-banner hidden" id="accessBanner" role="alert">
+    <strong>FULL PC ACCESS</strong>
+    <span>AI file tools can read, write, move, and delete any path your Windows user can reach. Turn this off when you are done.</span>
+    <button id="accessBannerBtn" class="btn tiny ghost">Turn off</button>
+  </div>
+
   <main>
     <div class="grid">
       <div class="col">
@@ -103,7 +109,7 @@
             <h2>Project location</h2>
             <span class="tag">workspace</span>
           </div>
-          <p class="muted">Every new project and all AI file edits go here.</p>
+          <p class="muted">Every new project and all AI file edits default to this folder.</p>
           <p class="path mono" id="wsPath">{{WORKSPACE}}</p>
           <div id="wsEdit" class="ws-edit hidden">
             <input id="wsInput" spellcheck="false" autocomplete="off" placeholder="C:\Users\You\Projects">
@@ -120,6 +126,30 @@
             <button id="refreshBtn" class="btn ghost">Refresh</button>
           </div>
           <p class="ws-msg hidden" id="wsSaved"></p>
+        </article>
+
+        <article class="card access-card" id="accessCard">
+          <div class="card-head">
+            <h2>File access</h2>
+            <span class="tag" id="accessTag">workspace</span>
+          </div>
+          <p class="muted" id="accessDesc">AI file tools are locked to the project location.</p>
+          <div class="access-state" id="accessState" data-state="safe">
+            <span class="access-dot"></span>
+            <span id="accessStateText">Workspace only</span>
+          </div>
+          <button id="accessToggleBtn" class="btn danger wide">Enable full PC access</button>
+          <div id="accessConfirm" class="access-confirm hidden">
+            <p class="access-warning">This unlocks read, write, move, and delete anywhere your Windows user has permission. Only do this for a chat you trust.</p>
+            <input id="accessConfirmInput" spellcheck="false" autocomplete="off" aria-label="Type FULL PC ACCESS to confirm" placeholder="Type FULL PC ACCESS">
+            <p class="access-error hidden" id="accessError"></p>
+            <div class="row">
+              <button id="accessConfirmBtn" class="btn danger solid">Enable anyway</button>
+              <button id="accessCancelBtn" class="btn ghost">Cancel</button>
+            </div>
+          </div>
+          <p class="ws-msg hidden" id="accessMsg"></p>
+          <p class="hint">Shell commands already run as your Windows user. This switch expands the file tools only. <strong>Off by default.</strong></p>
         </article>
 
         <article class="card steps">
@@ -142,7 +172,7 @@
 
         <article class="card note">
           <h2>Safety</h2>
-          <p>AI commands run as your Windows user. File tools stay inside the workspace and shell commands are screened for destructive patterns, but <strong>exec is not a sandbox</strong>. Only bridge chats you trust.</p>
+          <p>AI commands run as your Windows user. File tools stay inside the workspace by default (full PC access is opt-in) and shell commands are screened for destructive patterns, but <strong>exec is not a sandbox</strong>. Only bridge chats you trust.</p>
         </article>
       </aside>
     </div>

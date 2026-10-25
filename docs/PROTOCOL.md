@@ -14,9 +14,9 @@ The first message sent to a new chat starts with:
 [PC BRIDGE PROTOCOL v1] — read fully
 ```
 
-It contains the workspace path, tool examples, the one-operation rule, and the
-first verification command. When the verification result returns, the AI should
-answer exactly:
+It contains the workspace path, the active file-access mode, tool examples, the
+one-operation rule, and the first verification command. When verification
+returns, the AI should answer exactly:
 
 ```text
 BRIDGE READY
@@ -41,7 +41,7 @@ Rules:
 
 - Exactly one tool per assistant reply.
 - Wait for the result before sending the next operation.
-- Use workspace-relative paths.
+- Use workspace-relative paths unless the user enabled full PC access.
 - Do not wrap the JSON in extra prose inside the fence.
 - `done` is the final operation.
 
@@ -72,7 +72,7 @@ Run a command in the workspace.
 | Field | Required | Notes |
 | --- | --- | --- |
 | `command` | yes | Max 20,000 characters. |
-| `cwd` | no | Workspace-relative; defaults to `.`. |
+| `cwd` | no | Workspace-relative by default; absolute path allowed in full PC mode. Defaults to `.`. |
 | `timeout` | no | Seconds; default 180, max 900. |
 | `shell` | no | `powershell` (default) or `cmd`. |
 
@@ -128,7 +128,8 @@ Creates parents as needed.
 {"tool":"move","from":"old.txt","to":"new.txt"}
 ```
 
-Both paths are workspace-relative.
+Both paths are workspace-relative by default. In full PC mode they may be
+absolute.
 
 ### `remove`
 
@@ -136,7 +137,9 @@ Both paths are workspace-relative.
 {"tool":"remove","path":"old-folder","recursive":true}
 ```
 
-Refuses to remove the workspace root.
+Refuses to remove the workspace root. In full PC mode it also refuses drive
+roots, the user-profile root, Windows, Program Files, ProgramData, and the Bridge
+app folders.
 
 ### `stat`
 
@@ -166,6 +169,31 @@ run instructions.
 
 ---
 
+## Full PC access mode
+
+Full PC access is a dashboard setting, not a protocol operation. The AI cannot
+enable or disable it by emitting a bridge block.
+
+When the dashboard reports it on, `ping` returns `"fullPcAccess": true` and the
+prime message says that absolute paths are allowed. Tools then behave like this:
+
+| Input | Result |
+| --- | --- |
+| `my-app\src\App.jsx` | Resolved from the workspace. |
+| `C:\Users\You\Documents\notes.txt` | Used as-is. |
+| `%USERPROFILE%\Desktop\notes.txt` | Environment variables are expanded. |
+| `~\Desktop\notes.txt` | `~` expands to the user profile. |
+
+Deleting or moving drive roots, the user-profile root, Windows, Program Files,
+ProgramData, and the Bridge app folders is still refused. Everything else is
+limited only by Windows permissions.
+
+The mode persists across server restarts. After changing it, tell the user to
+re-send the protocol so the chat context matches the server. When in doubt, ask
+before reading or writing personal files outside the workspace.
+
+---
+
 ## Result format
 
 The extension sends results as a normal user message:
@@ -188,7 +216,7 @@ On failure:
 ```text
 tool: write | ok: false | 3ms
 --- OUTPUT ---
-ERROR: Path is outside the workspace: ../secret.txt
+ERROR: Path is outside the workspace: ../secret.txt. Enable Full PC access in the dashboard or use a workspace-relative path.
 --- END OUTPUT ---
 ```
 
@@ -222,5 +250,6 @@ double execution.
 4. Document it here and in the prime message if the AI should know about it.
 5. Add a smoke test in `tests/smoke.test.js`.
 
-Keep new tools inside `resolveInside()` unless they are explicitly read-only and
-safe. Never add an unauthenticated endpoint.
+Keep new tools inside `resolveInside()` so they obey the active access mode.
+Never add an unauthenticated endpoint, and never let a protocol tool toggle the
+access mode.
