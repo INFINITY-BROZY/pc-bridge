@@ -1,0 +1,8 @@
+{
+  "port": 8787,
+  "workspace": "workspace",
+  "maxOutputBytes": 300000,
+  "defaultTimeoutSec": 180,
+  "maxTimeoutSec": 900,
+  "blockDangerousCommands": true
+}

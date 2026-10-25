@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PC Bridge — mock chat</title>
+  <meta name="bridge-token" content="{{TOKEN}}">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #0b0f16;
+      color: #e6edf6;
+      font: 14px/1.6 "Segoe UI", system-ui, sans-serif;
+    }
+    header {
+      padding: 14px 22px;
+      border-bottom: 1px solid #1c2638;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0d121b;
+    }
+    header b { letter-spacing: .08em; color: #7dd3fc; }
+    header span { color: #64748b; font-size: 12px; }
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 26px max(18px, calc((100vw - 780px) / 2));
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .msg { max-width: 100%; }
+    .who { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 5px; }
+    .bubble {
+      display: inline-block;
+      max-width: 100%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid #1e293b;
+      background: #101724;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12.5px;
+      line-height: 1.65;
+    }
+    .user .bubble { background: #0f2436; border-color: #164e63; }
+    .system .bubble { background: transparent; border-style: dashed; color: #7f93ad; font-family: inherit; }
+    .assistant .bubble { background: #101724; }
+    #composer {
+      position: sticky;
+      bottom: 0;
+      padding: 14px max(18px, calc((100vw - 780px) / 2)) 22px;
+      border-top: 1px solid #1c2638;
+      background: linear-gradient(180deg, rgba(11,15,22,0), #0b0f16 25%);
+      display: flex;
+      gap: 10px;
+    }
+    textarea {
+      flex: 1;
+      min-height: 54px;
+      max-height: 160px;
+      resize: none;
+      padding: 13px 15px;
+      border-radius: 12px;
+      border: 1px solid #243244;
+      background: #0d1420;
+      color: #e6edf6;
+      outline: none;
+      font: inherit;
+    }
+    textarea:focus { border-color: #0891b2; }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 0 22px;
+      background: linear-gradient(135deg, #0891b2, #4f46e5);
+      color: white;
+      font: 600 13px "Segoe UI", system-ui, sans-serif;
+      cursor: pointer;
+    }
+    #testbar {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 5;
+      padding: 9px 12px;
+      border-radius: 9px;
+      border: 1px solid #1e293b;
+      background: rgba(8, 14, 24, .94);
+      color: #94a3b8;
+      font: 11px/1.5 ui-monospace, Consolas, monospace;
+      max-width: 300px;
+    }
+    #testbar b { color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>MOCK CHAT</b>
+    <span>PC Bridge end-to-end test · not a real AI</span>
+  </header>
+
+  <div id="chat"></div>
+
+  <div id="composer">
+    <textarea id="input" placeholder="Type a project request…"></textarea>
+    <button id="send" aria-label="Send message">Send</button>
+  </div>
+
+  <div id="testbar">test: <b id="phase">idle</b><br><span id="counts">0 user · 0 assistant</span></div>
+
+  <script>
+    // ---- fake chrome extension APIs (so the real content scripts can run here) ----
+    const TOKEN = document.querySelector('meta[name="bridge-token"]').content;
+    window.chrome = window.chrome || {};
+    window.chrome.runtime = {
+      id: 'mock-extension',
+      onMessage: { addListener: () => {} },
+      sendMessage: async (msg) => {
+        if (!msg || msg.type !== 'PCB_CALL') return { transportOk: false, error: 'bad message' };
+        try {
+          const res = await fetch('/api/' + msg.tool, {
+            method: msg.method === 'GET' ? 'GET' : 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Bridge-Token': TOKEN },
+            body: msg.method === 'GET' ? undefined : JSON.stringify(msg.params || {})
+          });
+          const body = await res.json();
+          return { transportOk: true, status: res.status, body };
+        } catch (err) {
+          return { transportOk: false, error: err.message };
+        }
+      }
+    };
+    window.chrome.storage = {
+      local: {
+        get: async (key) => ({
+          'pcbridge.settings.v1': {
+            server: location.origin,
+            token: TOKEN,
+            enabled: true,
+            autoRun: new URLSearchParams(location.search).get('autoRun') !== '0',
+            autoSend: true,
+            autoPrime: false,
+            maxSteps: 40
+          }
+        }),
+        set: async () => {}
+      }
+    };
+
+    // ---- tiny chat UI ----
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    const phaseEl = document.getElementById('phase');
+    const countsEl = document.getElementById('counts');
+    let phase = 0;
+    let userCount = 0;
+    let assistantCount = 0;
+
+    function updateCounts() {
+      countsEl.textContent = userCount + ' user · ' + assistantCount + ' assistant';
+      window.__test = { phase, userCount, assistantCount };
+    }
+
+    function addMessage(role, text) {
+      const wrap = document.createElement('div');
+      wrap.className = 'msg ' + role;
+      const who = document.createElement('div');
+      who.className = 'who';
+      who.textContent = role === 'assistant' ? 'assistant' : role;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble' + (role === 'assistant' ? ' ds-markdown' : '');
+      bubble.textContent = text;
+      wrap.append(who, bubble);
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+      if (role === 'user') userCount++;
+      if (role === 'assistant') assistantCount++;
+      updateCounts();
+    }
+
+    const F = '```';
+    function execBlock(cmd) {
+      return 'Let me check the machine.\n\n' + F + 'bridge\n' + JSON.stringify({ tool: 'exec', command: cmd, cwd: '.' }) + '\n' + F + '\n\nI will continue after the result.';
+    }
+    function writeBlock() {
+      return 'Writing a demo file.\n\n' +
+        F + 'bridge\n' + JSON.stringify({ tool: 'write', path: '_mock/demo.txt' }) + '\n' + F + '\n' +
+        F + 'file:_mock/demo.txt\nhello from the mock bridge\nthis proves file writes work\n' + F + '\n\nCheck it next.';
+    }
+    function doneBlock() {
+      return F + 'bridge\n' + JSON.stringify({ tool: 'done', summary: 'Mock task finished — exec + write + done all worked.', run: 'open workspace/_mock/demo.txt' }) + '\n' + F;
+    }
+
+    function respondToUser(text) {
+      if (text.includes('PC BRIDGE PROTOCOL')) {
+        setTimeout(() => addMessage('assistant', 'BRIDGE READY'), 500);
+        return;
+      }
+
+      if (text.includes('PC BRIDGE RESULT')) {
+        phase++;
+        phaseEl.textContent = 'after result ' + phase;
+        updateCounts();
+        if (phase === 1) {
+          setTimeout(() => addMessage('assistant', writeBlock()), 650);
+        } else if (phase === 2) {
+          setTimeout(() => addMessage('assistant', doneBlock()), 650);
+        } else {
+          setTimeout(() => addMessage('assistant', 'Done. No more blocks from the mock.'), 650);
+        }
+        return;
+      }
+
+      setTimeout(() => addMessage('assistant', execBlock('node -v; Write-Output MOCK_EXEC_OK')), 600);
+    }
+
+    function send() {
+      const text = input.value;
+      if (!text.trim()) return;
+      input.value = '';
+      addMessage('user', text);
+      respondToUser(text);
+    }
+
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+
+    // ---- test starts itself ----
+    setTimeout(() => {
+      phaseEl.textContent = 'scripted';
+      addMessage('assistant', execBlock('node -v; Write-Output MOCK_EXEC_OK'));
+    }, 2400);
+  </script>
+
+  <script src="/ext/shared.js"></script>
+  <script src="/ext/adapters.js"></script>
+  <script src="/ext/ui.js"></script>
+  <script src="/ext/content.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Runtime state (never commit these)
+server/config.json
+server/token.txt
+server/*.tmp
+logs/
+workspace/
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp

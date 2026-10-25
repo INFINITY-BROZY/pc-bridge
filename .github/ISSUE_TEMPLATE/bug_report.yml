@@ -1,0 +1,76 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste your token, private file contents, or personal paths.**
+        If this is a security issue, use the repository's Security tab instead of a public issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior and the exact error text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start the bridge...
+        2. Open the chat...
+        3. Ask for...
+        4. See error...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Bridge version
+      description: Shown in the panel or dashboard footer.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Windows version, Chrome version, Node version, and AI site.
+      placeholder: "Windows 11 24H2, Chrome 141, Node 22.11, chat.deepseek.com"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Bridge mode
+      options:
+        - Auto-run on
+        - Auto-run off (approval mode)
+        - Paused
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (secrets removed)
+      description: Panel activity, server console, or DevTools errors. Remove tokens and private paths.
+      render: text
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed my token and private data from this report.
+          required: true
+        - label: I am running the latest version from `main`.
+          required: true

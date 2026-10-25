@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PC Bridge</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+  <meta name="bridge-token" content="{{TOKEN}}">
+  <meta name="bridge-workspace" content="{{WORKSPACE}}">
+  <meta name="bridge-version" content="{{VERSION}}">
+  <meta name="bridge-port" content="{{PORT}}">
+</head>
+<body>
+  <div class="glow glow-a"></div>
+  <div class="glow glow-b"></div>
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <rect x="1" y="1" width="38" height="38" rx="11" fill="#0b1220" stroke="#1e3a5f"/>
+          <path d="M7 27h26" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/>
+          <path d="M9 26c2-8 8-13 11-13s9 5 11 13" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M14 26v-7M17 26v-10M23 26v-10M26 26v-7" stroke="#818cf8" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1>PC BRIDGE</h1>
+        <p>Chat in Chrome. Build on your PC.</p>
+      </div>
+    </div>
+    <div class="status-pill" id="statusPill" data-state="online">
+      <span class="dot"></span>
+      <span id="statusText">Online</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <div class="col">
+        <article class="card hero">
+          <div class="hero-top">
+            <div>
+              <h2>Bridge server</h2>
+              <p class="muted">Listening only on <code>127.0.0.1:{{PORT}}</code></p>
+            </div>
+            <button id="pauseBtn" class="btn ghost">Pause AI access</button>
+          </div>
+          <div class="metrics">
+            <div><span class="label">Uptime</span><strong id="uptime">—</strong></div>
+            <div><span class="label">Node</span><strong id="nodeVer">—</strong></div>
+            <div><span class="label">Commands</span><strong id="cmdCount">0</strong></div>
+            <div><span class="label">Platform</span><strong id="platform">—</strong></div>
+          </div>
+          <div class="pulse-bar"><span id="pulse"></span></div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>Try a command</h2>
+              <p class="muted">Exactly what the AI can run. Nothing leaves this PC.</p>
+            </div>
+            <span class="tag" id="shellTag">PowerShell</span>
+          </div>
+          <div class="console-input">
+            <span class="prompt">PS&gt;</span>
+            <input id="cmdInput" placeholder="node -v" autocomplete="off" spellcheck="false">
+            <button id="runBtn" class="btn primary">Run</button>
+          </div>
+          <pre id="cmdOut" class="output hidden"></pre>
+        </article>
+
+        <article class="card grow">
+          <div class="card-head">
+            <h2>Activity</h2>
+            <button id="clearBtn" class="btn tiny ghost">Clear view</button>
+          </div>
+          <div id="activity" class="activity">
+            <div class="empty">No activity yet. Connect the extension and give DeepSeek a project.</div>
+          </div>
+        </article>
+      </div>
+
+      <aside class="col side">
+        <article class="card token-card">
+          <div class="card-head">
+            <h2>Access token</h2>
+            <span class="tag warn">secret</span>
+          </div>
+          <p class="muted">Paste this into the Chrome extension once.</p>
+          <div class="token-row">
+            <code id="tokenValue" data-revealed="false">••••••••••••••••••••••••</code>
+            <button id="revealBtn" class="btn tiny">Reveal</button>
+          </div>
+          <button id="copyBtn" class="btn primary wide">Copy token</button>
+          <p class="hint">Anyone with this token can run commands as you. Keep it on this PC.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2>Project location</h2>
+            <span class="tag">workspace</span>
+          </div>
+          <p class="muted">Every new project and all AI file edits go here.</p>
+          <p class="path mono" id="wsPath">{{WORKSPACE}}</p>
+          <div id="wsEdit" class="ws-edit hidden">
+            <input id="wsInput" spellcheck="false" autocomplete="off" placeholder="C:\Users\You\Projects">
+            <div class="row">
+              <button id="wsSaveBtn" class="btn primary">Save location</button>
+              <button id="wsCancelBtn" class="btn ghost">Cancel</button>
+            </div>
+            <p class="hint">Absolute path. The folder is created if it does not exist. If a chat is already open, click <em>Re-send protocol</em> in the bridge panel so the AI uses the new path.</p>
+            <p class="ws-msg hidden" id="wsError"></p>
+          </div>
+          <div class="row" id="wsActions">
+            <button id="wsChangeBtn" class="btn">Change location</button>
+            <button id="openBtn" class="btn ghost">Open folder</button>
+            <button id="refreshBtn" class="btn ghost">Refresh</button>
+          </div>
+          <p class="ws-msg hidden" id="wsSaved"></p>
+        </article>
+
+        <article class="card steps">
+          <h2>Set up in 3 steps</h2>
+          <ol>
+            <li>
+              <strong>Load the extension</strong>
+              <span>Open <code>chrome://extensions</code>, turn on Developer mode, click <em>Load unpacked</em>, choose <code>pc-bridge\extension</code>.</span>
+            </li>
+            <li>
+              <strong>Connect it</strong>
+              <span>Open <code>chat.deepseek.com</code>, click the bridge bubble in the corner, paste the token.</span>
+            </li>
+            <li>
+              <strong>Build something</strong>
+              <span>Turn the bridge on, then ask DeepSeek for a project. Watch the workspace fill up.</span>
+            </li>
+          </ol>
+        </article>
+
+        <article class="card note">
+          <h2>Safety</h2>
+          <p>AI commands run as your Windows user. File tools stay inside the workspace and shell commands are screened for destructive patterns, but <strong>exec is not a sandbox</strong>. Only bridge chats you trust.</p>
+        </article>
+      </aside>
+    </div>
+  </main>
+
+  <footer>
+    <span>PC Bridge v{{VERSION}}</span>
+    <span class="sep">·</span>
+    <span>local only</span>
+    <span class="sep">·</span>
+    <span id="clock"></span>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

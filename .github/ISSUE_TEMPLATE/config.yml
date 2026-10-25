@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/INFINITY-BROZY/pc-bridge/security/advisories/new
+    about: Report token leaks, path escapes, or unapproved execution privately.
+  - name: Installation help
+    url: https://github.com/INFINITY-BROZY/pc-bridge/blob/main/docs/TROUBLESHOOTING.md
+    about: Check the troubleshooting guide before opening an issue.
