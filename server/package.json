@@ -1,8 +1,8 @@
 {
   "name": "pc-bridge-server",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
-  "description": "Local bridge server: lets a Chrome chat UI run commands and edit files on this PC.",
+  "description": "Local bridge server: lets an approved AI chat site run commands and edit files on this PC.",
   "main": "server.js",
   "license": "MIT",
   "engines": {

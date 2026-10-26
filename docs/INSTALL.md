@@ -14,7 +14,7 @@ before running anything. The short version is in the main [README](../README.md)
 | Windows 10 or 11 | Windows 11 is recommended. |
 | Google Chrome, Microsoft Edge, Brave, Opera, or Vivaldi | All Chromium and support unpacked extensions. |
 | Node.js 20+ | Download the LTS installer from [nodejs.org](https://nodejs.org/). |
-| An AI chat account | DeepSeek is the primary, tested target. |
+| An AI chat account | DeepSeek is the primary, tested target; any `http(s)` chat site can be added. |
 | A folder for projects | `workspace/` is used until you change it. |
 
 Verify Node in PowerShell:
@@ -75,7 +75,7 @@ Do **not** extract only `server\` or only `extension\`; both are required.
 
 Otherwise, double-click **`START-BRIDGE.bat`**.
 
-A console window opens and says `PC BRIDGE v1.2.0 - local server`. Your browser
+A console window opens and says `PC BRIDGE v1.3.0 - local server`. Your browser
 opens the dashboard at:
 
 **http://127.0.0.1:8787**
@@ -91,7 +91,7 @@ closes, run the batch file from PowerShell to see the error:
 
 | File / folder | Purpose |
 | --- | --- |
-| `server\config.json` | Port, workspace, timeouts, safety settings. |
+| `server\config.json` | Port, workspace, timeouts, safety settings, full-PC mode, and custom AI sites. |
 | `server\token.txt` | Random 48-character access token. **Keep secret.** |
 | `workspace\` | Default project folder. |
 | `workspace\.bridge\` | Full command output logs. |
@@ -154,6 +154,7 @@ Firefox and Safari are not supported yet.
    - [claude.ai](https://claude.ai)
    - [gemini.google.com](https://gemini.google.com)
    - [grok.com](https://grok.com)
+   - any other chat site you added (see below)
 2. Click the round **PC Bridge bubble** in the bottom-right corner.
 3. In the dashboard, click **Reveal → Copy token** under **Access token**.
    Alternatively read `server\token.txt`.
@@ -163,6 +164,41 @@ Firefox and Safari are not supported yet.
 7. Flip **Bridge on**.
 
 The panel should show **connected · Windows** and **Bridge on**.
+
+### Using a custom AI site
+
+Any `http(s)` chat site can be connected, even if PC Bridge has no built-in
+adapter for it. Choose one of these routes:
+
+**Dashboard → AI platforms**
+
+1. Enter the site address, for example `https://chat.example.com`.
+2. Click **Add site**.
+3. Open the site and click the **PC Bridge toolbar icon** once. Approve the
+   per-site browser prompt.
+4. The floating panel appears. Paste the token and connect as usual.
+
+**Extension options → AI sites**
+
+1. Open the extension's **Options** page (right-click the toolbar icon →
+   **Options**, or `chrome://extensions` → **Details** → **Extension options**).
+2. Enter the site address and click **Add & grant access**.
+3. Approve the browser prompt, then open the site and click the toolbar icon.
+
+**Toolbar icon only**
+
+1. Open the chat site.
+2. Click the PC Bridge toolbar icon and approve access.
+3. The site is added to both the server list and the extension list
+   automatically.
+
+The address is stored as an exact origin: paths and query strings are discarded,
+and up to 50 custom sites can be configured. Built-in sites need no extra
+permission prompt.
+
+If the panel does not appear on a custom site, open **Advanced → selectors** in
+the panel and set the answer, composer, and send selectors for that site. Test
+them with **Test finders**. Revoke access later from the options page.
 
 ### First verification
 
@@ -190,8 +226,9 @@ build to verify it works. Do not stop until the build passes.
 
 What you should see:
 
-- The AI replies with one `bridge` command at a time.
-- The panel logs each command and file write.
+- The AI replies with one or more `bridge` blocks (up to 8 independent actions
+  per reply).
+- The panel logs each command, edit, and file write.
 - `[PC BRIDGE RESULT #n]` messages appear in the chat automatically.
 - Files appear under `workspace\todo-app`.
 - The AI finishes with a `done` block and a run command.
@@ -236,8 +273,9 @@ Program Files, or the Bridge application folders are rejected for safety.
 
 ### Full PC access (advanced)
 
-By default, `read`, `write`, `list`, `mkdir`, `move`, `remove`, `stat`, and
-`open` cannot leave the project location. If a task needs files elsewhere:
+By default, every file tool (`read`, `write`, `edit`, `list`, `mkdir`, `move`,
+`copy`, `remove`, `stat`, `open`, `grep`, `find`, `hash`, and `download`)
+cannot leave the project location. If a task needs files elsewhere:
 
 1. Open **http://127.0.0.1:8787**.
 2. Find **File access**.
@@ -277,6 +315,7 @@ What to do when finished:
 | **Bridge on/off** | Turn off when you are not using it. |
 | **Pause AI access** | Dashboard kill switch; blocks all tools immediately. |
 | **Full PC access** | Off. Enable only for a specific task, then turn it back off. |
+| **Custom-site access** | Grant only the chat sites you use. Revoke access in the options page when done. |
 
 ---
 
@@ -291,9 +330,12 @@ Then:
 
 1. Stop the server (`Ctrl+C`) and run `START-BRIDGE.bat` again.
 2. Open `chrome://extensions` and click **Reload** on PC Bridge.
-3. Refresh the AI chat tab.
+3. Open the extension **Options** page and confirm your custom sites still show
+   **allowed**. Re-grant any that say **needs access**.
+4. Refresh the AI chat tab.
 
-Your `server\config.json`, token, workspace, and projects are left untouched.
+Your `server\config.json`, token, workspace, custom-site list, and projects are
+left untouched.
 
 For a ZIP install, download and extract the new version over the old folder,
 but keep your runtime files (`server\config.json`, `server\token.txt`, and
@@ -343,5 +385,6 @@ node server\server.js --open
 - [ ] Token pasted, **Connect** succeeds
 - [ ] **Bridge on**
 - [ ] AI answers **BRIDGE READY**
+- [ ] Custom site added and shows **allowed** in the options page (if used)
 - [ ] Workspace chosen and writable
 - [ ] Token is **not** shared, committed, or posted online

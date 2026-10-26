@@ -81,6 +81,35 @@
     }
   }
 
+  function applyExternalSettings(saved) {
+    const next = { ...PCB.DEFAULTS, ...(saved || {}) };
+    next.selectors = { ...PCB.DEFAULTS.selectors, ...(next.selectors || {}) };
+    next.server = normalizeServer(next.server) || PCB.DEFAULTS.server;
+    next.maxSteps = Math.max(5, Number(next.maxSteps) || PCB.DEFAULTS.maxSteps);
+    const connectionChanged = next.server !== state.settings.server || next.token !== state.settings.token;
+    state.settings = next;
+    ui.setSettings(next);
+    setStats();
+    if (connectionChanged) {
+      state.online = false;
+      state.halted = false;
+      if (next.token) {
+        ping(true)
+          .then(() => {
+            ui.setStatus(state.enabled ? 'ready' : 'connected', 'ok');
+            if (state.enabled) {
+              invalidateAssistant();
+              scheduleTick(200);
+            }
+          })
+          .catch((err) => {
+            ui.setConnected(PCB.truncate(err.message, 52), 'bad');
+            ui.setStatus('offline', 'err');
+          });
+      }
+    }
+  }
+
   /* ---------------- server ---------------- */
 
   async function call(tool, params, method) {
@@ -120,7 +149,14 @@
   }
 
   async function ping(quiet) {
-    const info = await call('ping', null, 'GET');
+    let info;
+    try {
+      info = await call('ping', null, 'GET');
+    } catch (err) {
+      if (/token|401/i.test(err.message || '')) throw err;
+      await PCB.sleep(250);
+      info = await call('ping', null, 'GET');
+    }
     if (!info || info.ok !== true) throw new Error((info && info.error) || 'Ping failed');
     state.info = info;
     state.online = true;
@@ -176,6 +212,10 @@
       await ping(false);
       ui.setStatus(state.enabled ? 'ready' : 'connected', 'ok');
       if (userInitiated) addLog('bridge', 'Connected to ' + server, 'ok');
+      if (state.enabled) {
+        invalidateAssistant();
+        scheduleTick(200);
+      }
       return true;
     } catch (err) {
       state.online = false;
@@ -300,6 +340,8 @@
     ui.clearNotice();
 
     setTimeout(() => ensurePrime(true), 500);
+    invalidateAssistant();
+    scheduleTick(700);
   }
 
   async function ensurePrime(userInitiated) {
@@ -663,17 +705,17 @@
   /* ---------------- the watch loop ---------------- */
 
   async function tick() {
-    if (!state.enabled || state.busy || state.priming || state.halted || state.serverPaused) return;
-    if (state.pending || state.pendingSend) return;
-    if (!state.online) return;
+    if (!state.enabled || state.busy || state.priming || state.halted || state.serverPaused) return false;
+    if (state.pending || state.pendingSend) return false;
+    if (!state.online) return false;
 
     let last;
     try {
       last = PCB.adapter.getLastAssistant();
     } catch {
-      return;
+      return false;
     }
-    if (!last || !last.text) return;
+    if (!last || !last.text) return false;
 
     const text = last.text;
     if (text !== state.stable.text) {
@@ -682,22 +724,22 @@
         state.taskDone = false;
         if (!state.busy && !state.priming && !state.halted) ui.setStatus('waiting', 'ok');
       }
-      return;
+      return true;
     }
     state.stable.count++;
-    if (state.stable.count < 3) return;
-    if (last.generating) return;
+    if (state.stable.count < 2) return true;
+    if (last.generating) return true;
 
     const hasBridge =
       /```(?:bridge|json)\b/i.test(text) ||
       /```file\s*:/i.test(text) ||
       /```\s*\n\s*\{[^`]*"tool"\s*:/i.test(text) ||
       /(^|\n)\s*\{\s*"tool"\s*:/i.test(text);
-    if (!hasBridge) return;
+    if (!hasBridge) return false;
 
     const h = PCB.hash(text);
-    if (state.processed.has(h)) return;
-    if (PCB.hasOpenBridgeFence(text)) return;
+    if (state.processed.has(h)) return false;
+    if (PCB.hasOpenBridgeFence(text)) return false;
 
     const ops = PCB.buildOps(text);
     if (!ops.length) {
@@ -707,7 +749,7 @@
           { label: 'Copy raw', onClick: () => copyText(text) }
         ]);
       }
-      return;
+      return false;
     }
 
     state.parseReported = '';
@@ -716,10 +758,75 @@
     if (!state.settings.autoRun && ops.some((op) => op.tool !== 'done')) {
       state.pending = { ops, hash: h };
       renderApproval(ops, h);
-      return;
+      return false;
     }
 
     await runOps(ops);
+    return false;
+  }
+
+  /* ---------------- adaptive watcher ---------------- */
+
+  let tickTimer = null;
+  let tickRunning = false;
+
+  function invalidateAssistant() {
+    try {
+      if (PCB.adapter.invalidate) PCB.adapter.invalidate();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function scheduleTick(delay) {
+    if (!state.enabled) return;
+    if (tickTimer) clearTimeout(tickTimer);
+    tickTimer = setTimeout(async () => {
+      tickTimer = null;
+      if (tickRunning) return;
+      tickRunning = true;
+      try {
+        const again = await tick();
+        if (again) scheduleTick(260);
+      } catch (err) {
+        console.warn('[PC Bridge] watch error:', err);
+      } finally {
+        tickRunning = false;
+      }
+    }, Math.max(80, Number(delay) || 220));
+  }
+
+  function startWatcher() {
+    const root = document.documentElement || document.body;
+    if (root && typeof MutationObserver === 'function') {
+      const observer = new MutationObserver(() => {
+        invalidateAssistant();
+        scheduleTick(220);
+      });
+      observer.observe(root, { childList: true, subtree: true, characterData: true });
+    }
+
+    // Safety net for sites that update through canvas, shadow roots, or unusual
+    // renderers that do not emit observable mutations.
+    setInterval(() => {
+      if (document.hidden || !state.enabled) return;
+      invalidateAssistant();
+      scheduleTick(120);
+    }, 1800);
+
+    setInterval(watchUrl, 700);
+    setInterval(pingLoop, 12000);
+
+    window.addEventListener('popstate', watchUrl);
+    window.addEventListener('hashchange', watchUrl);
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        invalidateAssistant();
+        scheduleTick(120);
+        if (state.enabled && !state.online && state.settings.token) ping(true).catch(() => {});
+      }
+    });
   }
 
   /* ---------------- conversation changes ---------------- */
@@ -740,6 +847,8 @@
     if (state.enabled) {
       ui.setStatus('waiting', 'ok');
       setTimeout(() => ensurePrime(false), 2200);
+      invalidateAssistant();
+      scheduleTick(250);
     }
   }
 
@@ -754,6 +863,8 @@
     if (!state.enabled && !ui.isOpen()) return;
     try {
       await ping(true);
+      invalidateAssistant();
+      scheduleTick(200);
       if (state.enabled && !state.halted && !state.serverPaused && !state.taskDone) {
         if (!state.busy && !state.priming && !state.pending && !state.pendingSend) ui.setStatus('waiting', 'ok');
       } else if (!state.enabled) {
@@ -795,6 +906,12 @@
   (async () => {
     await loadSettings();
     ui.setSettings(state.settings);
+    if (HAS_EXT && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes[PCB.SETTINGS_KEY]) return;
+        applyExternalSettings(changes[PCB.SETTINGS_KEY].newValue);
+      });
+    }
     ui.setEnabled(false);
     setStats();
     ui.setConnected(
@@ -823,13 +940,11 @@
       }
     }
 
-    setInterval(tick, 900);
-    setInterval(watchUrl, 1200);
-    setInterval(pingLoop, 15000);
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && state.enabled && !state.online && state.settings.token) ping(true).catch(() => {});
-    });
+    startWatcher();
+    if (state.enabled) {
+      invalidateAssistant();
+      scheduleTick(400);
+    }
 
     console.log('%cPC Bridge %c' + PCB.VERSION + ' loaded on ' + location.hostname, 'color:#22d3ee;font-weight:bold', 'color:#94a3b8');
   })();

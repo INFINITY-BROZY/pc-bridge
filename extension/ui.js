@@ -417,7 +417,7 @@
             ${LOGO}
             <div>
               <h1>PC BRIDGE</h1>
-              <span class="sub">DeepSeek ↔ your PC · v${PCB.VERSION}</span>
+              <span class="sub">AI chat ↔ your PC · v${PCB.VERSION}</span>
             </div>
           </div>
           <div class="pcb-head-right">
@@ -492,7 +492,7 @@
           <details class="pcb-adv">
             <summary>Advanced · selectors</summary>
             <p>Only touch these if the bridge stops finding the chat box after a site update.</p>
-            <label class="pcb-field"><span class="lbl">Answer message</span><input id="selAssistant" spellcheck="false" placeholder=".ds-markdown"></label>
+            <label class="pcb-field"><span class="lbl">Answer message</span><input id="selAssistant" spellcheck="false" placeholder="auto-detect"></label>
             <label class="pcb-field"><span class="lbl">Chat box</span><input id="selComposer" spellcheck="false" placeholder="textarea"></label>
             <label class="pcb-field"><span class="lbl">Send button</span><input id="selSend" spellcheck="false" placeholder="auto-detect"></label>
             <div class="pcb-row" style="margin-top:2px">
@@ -537,6 +537,14 @@
       styled = false;
     }
     shadow.innerHTML = `${styled ? '' : `<style>${CSS}</style>`}${HTML}`;
+    try {
+      const sub = shadow.querySelector('.pcb-brand .sub');
+      if (sub && PCB.adapter && PCB.adapter.profile) {
+        sub.textContent = `${PCB.adapter.profile().name} \u2194 your PC \u00b7 v${PCB.VERSION}`;
+      }
+    } catch {
+      /* non-fatal label */
+    }
 
     const $ = (sel) => shadow.querySelector(sel);
     const el = {

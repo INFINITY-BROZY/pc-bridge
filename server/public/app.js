@@ -19,7 +19,11 @@ const state = {
   lastPing: 0,
   entries: [],
   clearedAt: 0,
-  workspace: WORKSPACE
+  workspace: WORKSPACE,
+  platforms: { builtin: [], custom: [], maxCustom: 50 },
+  platformKey: '',
+  toolCount: 0,
+  platformBusy: false
 };
 
 const els = {
@@ -63,6 +67,13 @@ const els = {
   accessMsg: $('#accessMsg'),
   accessBanner: $('#accessBanner'),
   accessBannerBtn: $('#accessBannerBtn'),
+  platformCount: $('#platformCount'),
+  platformList: $('#platformList'),
+  platformInput: $('#platformInput'),
+  platformAddBtn: $('#platformAddBtn'),
+  platformMsg: $('#platformMsg'),
+  platformClearBtn: $('#platformClearBtn'),
+  toolCount: $('#toolCount'),
   clock: $('#clock'),
   shellTag: $('#shellTag')
 };
@@ -182,6 +193,7 @@ async function refreshLog() {
     state.entries = entries;
     state.paused = Boolean(data.paused);
     state.fullPcAccess = Boolean(data.fullPcAccess);
+    if (data.platforms) applyPlatforms(data);
     const execs = (data.counters && data.counters.exec) || 0;
     els.cmdCount.textContent = String(execs);
     renderActivity();
@@ -212,6 +224,7 @@ async function ping() {
     state.lastPing = Date.now();
     state.paused = Boolean(data.paused);
     state.fullPcAccess = Boolean(data.fullPcAccess);
+    applyPlatforms(data);
     els.uptime.textContent = fmtUptime(data.uptimeSec);
     els.nodeVer.textContent = String(data.node || '—').replace(/^v/, 'v');
     els.platform.textContent = data.platform === 'win32' ? 'Windows' : (data.platform || '—');
@@ -448,6 +461,182 @@ function confirmAccess() {
   setFullAccess(true, phrase);
 }
 
+/* ---------------- AI platforms ---------------- */
+
+function platformName(origin) {
+  try {
+    return new URL(origin).hostname.replace(/^www\./, '');
+  } catch {
+    return origin;
+  }
+}
+
+function platformMessage(text, good) {
+  if (!text) {
+    els.platformMsg.textContent = '';
+    els.platformMsg.className = 'ws-msg hidden';
+    return;
+  }
+  els.platformMsg.textContent = text;
+  els.platformMsg.className = 'ws-msg' + (good ? ' good' : '');
+}
+
+function applyPlatforms(data) {
+  if (!data) return;
+  const payload = data.platforms && Array.isArray(data.platforms.builtin)
+    ? data.platforms
+    : Array.isArray(data.builtin) ? data : null;
+  if (!payload) return;
+  state.platforms = {
+    builtin: payload.builtin,
+    custom: Array.isArray(payload.custom) ? payload.custom : [],
+    maxCustom: Number(payload.maxCustom) || 50
+  };
+  const count = Number(data.toolCount);
+  if (Number.isFinite(count) && count > 0) state.toolCount = count;
+  renderPlatforms();
+}
+
+function platformOpenButton(label, handler) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn tiny ghost';
+  button.textContent = label;
+  button.addEventListener('click', handler);
+  return button;
+}
+
+function renderPlatforms() {
+  const builtin = state.platforms.builtin || [];
+  const custom = state.platforms.custom || [];
+  const total = builtin.length + custom.length;
+  els.platformCount.textContent = total === 1 ? '1 site' : `${total} sites`;
+  els.toolCount.textContent = String(state.toolCount || 17);
+  els.platformClearBtn.classList.toggle('hidden', custom.length === 0);
+
+  const key = JSON.stringify([builtin.map((p) => p.origin), custom]);
+  if (key === state.platformKey) return;
+  state.platformKey = key;
+
+  els.platformList.textContent = '';
+  if (!total) {
+    const empty = document.createElement('div');
+    empty.className = 'empty small';
+    empty.textContent = 'No sites configured. Add one below.';
+    els.platformList.append(empty);
+    return;
+  }
+
+  const rows = [
+    ...builtin.map((item) => ({
+      name: item.name || platformName(item.origin),
+      origin: item.origin,
+      custom: false
+    })),
+    ...custom.map((origin) => ({
+      name: platformName(origin),
+      origin,
+      custom: true
+    }))
+  ];
+
+  for (const row of rows) {
+    const el = document.createElement('div');
+    el.className = 'platform' + (row.custom ? ' custom-row' : '');
+
+    const main = document.createElement('div');
+    main.className = 'platform-main';
+    const name = document.createElement('span');
+    name.className = 'platform-name';
+    name.textContent = row.name;
+    const origin = document.createElement('span');
+    origin.className = 'platform-origin';
+    origin.textContent = row.origin;
+    origin.title = row.origin;
+    main.append(name, origin);
+
+    const kind = document.createElement('span');
+    kind.className = 'tag' + (row.custom ? ' custom' : '');
+    kind.textContent = row.custom ? 'custom' : 'built-in';
+
+    const actions = document.createElement('div');
+    actions.className = 'platform-actions';
+    actions.append(platformOpenButton('Open', () => {
+      window.open(row.origin + '/', '_blank', 'noopener,noreferrer');
+    }));
+    if (row.custom) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn tiny danger';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', () => removePlatform(row.origin));
+      actions.append(remove);
+    }
+
+    el.append(main, kind, actions);
+    els.platformList.append(el);
+  }
+}
+
+async function addPlatform() {
+  if (state.platformBusy) return;
+  const value = els.platformInput.value.trim();
+  if (!value) {
+    platformMessage('Enter a site address, for example https://chat.example.com', false);
+    els.platformInput.focus();
+    return;
+  }
+  state.platformBusy = true;
+  els.platformAddBtn.disabled = true;
+  els.platformAddBtn.textContent = 'Adding…';
+  platformMessage('');
+  try {
+    const data = await api('platforms', { action: 'add', origin: value });
+    applyPlatforms(data);
+    els.platformInput.value = '';
+    platformMessage(data.message || `${value} added.`, true);
+    refreshLog();
+  } catch (err) {
+    platformMessage(err.message, false);
+  } finally {
+    state.platformBusy = false;
+    els.platformAddBtn.disabled = false;
+    els.platformAddBtn.textContent = 'Add site';
+  }
+}
+
+async function removePlatform(origin) {
+  if (state.platformBusy) return;
+  if (!window.confirm(`Remove ${origin} from the platform list?\n\nBuilt-in sites are unaffected. Revoke browser access separately in the extension options page.`)) return;
+  state.platformBusy = true;
+  try {
+    const data = await api('platforms', { action: 'remove', origin });
+    applyPlatforms(data);
+    platformMessage(data.message || `${origin} removed.`, true);
+  } catch (err) {
+    platformMessage(err.message, false);
+  } finally {
+    state.platformBusy = false;
+  }
+}
+
+async function clearPlatforms() {
+  if (state.platformBusy) return;
+  const count = state.platforms.custom.length;
+  if (!count) return;
+  if (!window.confirm(`Remove all ${count} custom site${count === 1 ? '' : 's'}? Built-in sites stay available.`)) return;
+  state.platformBusy = true;
+  try {
+    const data = await api('platforms', { action: 'clear' });
+    applyPlatforms(data);
+    platformMessage(data.message || 'Custom sites cleared.', true);
+  } catch (err) {
+    platformMessage(err.message, false);
+  } finally {
+    state.platformBusy = false;
+  }
+}
+
 /* ---------------- boot ---------------- */
 
 els.runBtn.addEventListener('click', runCommand);
@@ -492,6 +681,15 @@ els.clearBtn.addEventListener('click', () => {
   state.entries = [];
   renderActivity();
 });
+
+els.platformAddBtn.addEventListener('click', addPlatform);
+els.platformInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addPlatform();
+  }
+});
+els.platformClearBtn.addEventListener('click', clearPlatforms);
 
 setInterval(() => {
   els.clock.textContent = new Date().toLocaleTimeString();

@@ -23,7 +23,8 @@ npm test
 ```
 
 `npm test` copies the server into a temporary folder, starts it on an isolated
-port with a test token, and exercises ping, workspace changes, file tools, exec,
+port with a test token, and exercises platform management, custom CORS, every
+tool, file guards, downloads/fetches, workspace changes, full PC access, pause,
 and traversal rejection. It does not touch your real config, token, or projects.
 
 ### Mock chat
@@ -46,7 +47,7 @@ writes a file, and finishes.
 | --- | --- |
 | `server/server.js` | HTTP API, tools, path checks, safety policy. |
 | `server/public/` | Dashboard, no build step. |
-| `extension/` | Unpacked Chrome extension. |
+| `extension/` | Unpacked Chromium extension, including the options page. |
 | `docs/` | Install, architecture, protocol, troubleshooting. |
 | `tests/` | Dependency-free smoke tests. |
 | `scripts/` | Maintenance scripts. |
@@ -65,18 +66,33 @@ Run `npm run check` before committing.
 
 ## Adding a chat site
 
+Custom sites need no code: add them in the dashboard or options page and grant
+per-site access. Use the built-in path only when a site deserves a tuned adapter.
+
 1. Add the domain to `matches` in `extension/manifest.json`.
-2. Add a profile in `extension/adapters.js`:
+2. Add the origin to `BUILTIN_ORIGINS` in `extension/background.js`, the server's
+   `BUILTIN_PLATFORMS`/CORS list, and `FALLBACK_BUILTIN` in `options.js`.
+3. Add a profile in `extension/adapters.js`:
    - assistant selector,
    - composer selector,
    - send-button selector or Enter fallback,
    - text extraction behavior.
-3. Reload the unpacked extension and refresh the site.
-4. Test with **Advanced → Test finders**.
-5. Update the supported-site table in `README.md`.
+4. Reload the unpacked extension and refresh the site.
+5. Test with **Advanced → Test finders**.
+6. Update the supported-site table in `README.md`.
 
 Automatic UI automation is fragile. Prefer resilient selectors and keep the
 generic fallback working.
+
+## Adding a tool
+
+1. Add the handler and route in `server/server.js`, then add the name to
+   `TOOL_NAMES`.
+2. Add it to `allowed` in `shared.js`, `PCB.opSummary`, and `SAFE_TOOLS` in
+   `background.js`.
+3. Keep path work inside `resolveInside()`.
+4. Document it in `docs/PROTOCOL.md` and the prime message if the AI needs it.
+5. Add smoke coverage in `tests/smoke.test.js`.
 
 ## Pull requests
 

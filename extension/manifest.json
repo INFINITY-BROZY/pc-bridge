@@ -1,15 +1,17 @@
 {
   "manifest_version": 3,
   "name": "PC Bridge — AI chat builds on your PC",
-  "version": "1.2.0",
-  "description": "Bridges DeepSeek, ChatGPT, Claude or Gemini chats to a local server that can run commands and write project files on your PC.",
-  "permissions": ["storage", "activeTab"],
+  "version": "1.3.0",
+  "description": "Connects any AI chat you approve — built-in sites or your own custom sites — to a local server that can run commands and build projects on your PC.",
+  "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },
+  "options_page": "options.html",
   "action": {
-    "default_title": "PC Bridge — open panel",
+    "default_title": "PC Bridge — open panel or grant site access",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

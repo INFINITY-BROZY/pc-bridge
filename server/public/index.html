@@ -27,7 +27,7 @@
       </div>
       <div>
         <h1>PC BRIDGE</h1>
-        <p>Chat in Chrome. Build on your PC.</p>
+        <p>Chat with any AI. Build on your PC.</p>
       </div>
     </div>
     <div class="status-pill" id="statusPill" data-state="online">
@@ -84,7 +84,31 @@
             <button id="clearBtn" class="btn tiny ghost">Clear view</button>
           </div>
           <div id="activity" class="activity">
-            <div class="empty">No activity yet. Connect the extension and give DeepSeek a project.</div>
+            <div class="empty">No activity yet. Connect the extension and give the AI a project.</div>
+          </div>
+        </article>
+
+        <article class="card platforms-card">
+          <div class="card-head">
+            <div>
+              <h2>AI platforms</h2>
+              <p class="muted">Chat sites this server accepts.</p>
+            </div>
+            <span class="tag" id="platformCount">—</span>
+          </div>
+          <p class="muted">Built-in sites work out of the box. Add any other chat site here, then grant the extension access to it once.</p>
+          <div id="platformList" class="platform-list">
+            <div class="empty small">Loading platforms…</div>
+          </div>
+          <div class="platform-add">
+            <input id="platformInput" spellcheck="false" autocomplete="off" aria-label="Custom AI platform URL" placeholder="https://chat.example.com">
+            <button id="platformAddBtn" class="btn primary">Add site</button>
+          </div>
+          <p class="ws-msg hidden" id="platformMsg"></p>
+          <p class="hint">After adding, open the site and click the PC Bridge toolbar icon once. That grants browser access for that site only and shows the panel. Manage access any time in the extension's options page.</p>
+          <div class="platform-foot">
+            <span><strong id="toolCount">17</strong> AI tools available</span>
+            <button id="platformClearBtn" class="linkish hidden">Remove all custom sites</button>
           </div>
         </article>
       </div>
@@ -95,7 +119,7 @@
             <h2>Access token</h2>
             <span class="tag warn">secret</span>
           </div>
-          <p class="muted">Paste this into the Chrome extension once.</p>
+          <p class="muted">Paste this into the extension once.</p>
           <div class="token-row">
             <code id="tokenValue" data-revealed="false">••••••••••••••••••••••••</code>
             <button id="revealBtn" class="btn tiny">Reveal</button>
@@ -161,11 +185,11 @@
             </li>
             <li>
               <strong>Connect it</strong>
-              <span>Open <code>chat.deepseek.com</code>, click the bridge bubble in the corner, paste the token.</span>
+              <span>Open a supported AI chat or add your own site above. Click the bridge bubble, then paste the token.</span>
             </li>
             <li>
               <strong>Build something</strong>
-              <span>Turn the bridge on, then ask DeepSeek for a project. Watch the workspace fill up.</span>
+              <span>Turn the bridge on, then ask the AI for a project. Watch the workspace fill up.</span>
             </li>
           </ol>
         </article>

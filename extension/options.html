@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PC Bridge — Extension settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="logo">PB</div>
+      <div>
+        <h1>PC BRIDGE</h1>
+        <p>Extension settings · connect any AI chat</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Bridge server</h2>
+      <p>The extension talks only to your local PC Bridge server. The token is stored in Chrome's local extension storage.</p>
+      <label>
+        <span>Server URL</span>
+        <input id="server" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:8787">
+      </label>
+      <label>
+        <span>Access token</span>
+        <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="Paste the token from the dashboard">
+      </label>
+      <div class="row">
+        <button id="save" class="primary">Save &amp; test</button>
+        <button id="dashboard" class="ghost">Open dashboard</button>
+      </div>
+      <div id="connectionStatus" class="status"><span class="dot"></span><span id="connectionText">Not tested yet</span></div>
+      <p id="connectionMsg" class="msg hidden"></p>
+    </section>
+
+    <section class="card">
+      <h2>AI sites</h2>
+      <p>Built-in sites are ready automatically. Add any other chat website here, then grant the extension access to that site. You can also click the PC Bridge toolbar icon on the site once to do both.</p>
+      <label>
+        <span>Add a custom AI platform</span>
+        <input id="siteInput" spellcheck="false" autocomplete="off" placeholder="https://chat.example.com">
+      </label>
+      <div class="row">
+        <button id="addSite" class="primary">Add &amp; grant access</button>
+        <button id="refreshSites" class="ghost">Refresh list</button>
+      </div>
+      <p id="siteMsg" class="msg hidden"></p>
+      <div id="siteList" class="site-list">
+        <div class="empty">Loading sites…</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How custom sites work</h2>
+      <ol class="steps">
+        <li><strong>Add the site</strong> here or in the dashboard. This tells the local server it may accept requests from that origin.</li>
+        <li><strong>Grant access once.</strong> Chrome asks you to allow the extension on that one site. Nothing is granted globally.</li>
+        <li><strong>Open the chat and click the PC Bridge icon.</strong> The floating panel appears. If the site's markup is unusual, use the panel's <em>Advanced → selectors</em> fields.</li>
+        <li><strong>Revoke anytime.</strong> Remove browser access below or remove the site in the dashboard. The server token still protects every request.</li>
+      </ol>
+    </section>
+
+    <footer>PC Bridge v1.3.0 · local only · no analytics</footer>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -659,6 +659,106 @@ body {
 
 .access-card .hint strong { color: #fecaca; font-weight: 600; }
 
+/* AI platforms */
+.platforms-card { border-color: rgba(129, 140, 248, 0.18); }
+
+.platform-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.platform {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.11);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.32);
+}
+
+.platform-main { flex: 1; min-width: 0; }
+.platform.custom-row { grid-column: 1 / -1; }
+
+.platform-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-origin {
+  display: block;
+  overflow: hidden;
+  color: var(--faint);
+  font: 10.5px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-actions { display: flex; flex: 0 0 auto; gap: 5px; }
+.platform .tag { padding: 3px 6px; font-size: 8.5px; letter-spacing: 0.07em; }
+
+.tag.custom {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.08);
+  border-color: rgba(129, 140, 248, 0.28);
+}
+
+.platform-add { display: flex; gap: 8px; }
+
+.platform-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  outline: none;
+  background: #050a12;
+  color: var(--text);
+  font: 11.5px var(--mono);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.platform-add input:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.08);
+}
+
+.platform-list .empty { grid-column: 1 / -1; padding: 14px; }
+
+.platform-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.12);
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.platform-foot strong { color: #a5f3fc; font-weight: 600; }
+
+.linkish {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font: 11px var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkish:hover { color: #fca5a5; }
+
 footer {
   display: flex;
   align-items: center;

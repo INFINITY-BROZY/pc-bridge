@@ -11,10 +11,63 @@ running, wrong token, extension not reloaded, or the AI not seeing the protocol.
 - Check `chrome://extensions` and confirm PC Bridge is **enabled**.
 - Confirm the URL is supported: `chat.deepseek.com`, `chatgpt.com`,
   `chat.openai.com`, `claude.ai`, `gemini.google.com`, or `grok.com`.
+- For any other site, use the custom-site steps below.
 - If you just updated the files, click **Reload** on the extension card, then
   refresh the chat tab.
 - If the site has strict CSP, the panel should still render in a shadow root.
   Check the DevTools console for errors starting with `PC Bridge`.
+
+## The panel does not appear on a custom site
+
+1. Add the site in **Dashboard → AI platforms** or in the extension
+   **Options → AI sites**.
+2. Open the extension options page and find the site. It should say **allowed**.
+   If it says **needs access**, click **Grant access** and approve the prompt.
+3. Reload the chat tab.
+4. Click the **PC Bridge toolbar icon** once. This both grants access and
+   injects the panel into the current tab.
+5. If the panel still does not appear, open DevTools → Console and look for
+   messages starting with `PC Bridge`.
+
+Chrome only grants access per origin, and it remembers a denial. Granting from
+the options page is the most reliable way to recover.
+
+Custom-site automation works on normal `http(s)` pages. It does not work on
+`chrome://` pages, the Chrome Web Store, the PDF viewer, `file://` pages, or
+sites that render the chat inside a cross-origin iframe.
+
+## A custom site is listed but every request fails
+
+- The server stores an exact origin. `https://chat.example.com` and
+  `https://www.chat.example.com` are different sites, and `http` is not `https`.
+- Re-add the exact address shown in the browser's address bar.
+- Confirm the extension options page says **connected** with the same server and
+  token used by the dashboard.
+- If the dashboard refuses to add the site, the address is invalid, already
+  built in, or the 50-site limit was reached.
+- Removing a site from the dashboard does not revoke browser access. Use
+  **Revoke** in the options page as well.
+
+## "Access was rolled back" when adding a site
+
+The browser grant succeeded, but the local server rejected the add request. The
+extension removes the browser permission so the two lists do not drift.
+
+1. Confirm `START-BRIDGE.bat` is running.
+2. Save and test the token in the extension options page.
+3. Add the site again.
+
+If the site is already in the server list but registration failed, the message
+says so; click **Grant access** to retry without adding it twice.
+
+## A custom site needs manual selectors
+
+1. Open the panel → **Advanced → selectors**.
+2. Set **Answer**, **Composer**, and **Send** selectors for the site.
+3. Click **Test finders** and check the Activity output.
+4. Save. The overrides apply immediately and persist in extension storage.
+
+If the site changes its markup later, repeat this check.
 
 ## The dashboard does not open or shows "offline"
 
@@ -43,6 +96,10 @@ The AI is not emitting a `bridge` block.
 2. Wait for **BRIDGE READY**.
 3. If it still refuses, start a **new chat** and turn the bridge on again.
 4. Ask explicitly: “Use the PC Bridge protocol and run `node -v`.”
+
+The AI may batch up to 8 independent operations per reply. If it sends a later
+step before the earlier result arrives, tell it to use one batch only for
+independent work and wait for dependent results.
 
 ## "Found a bridge block but could not read its JSON"
 
@@ -107,6 +164,12 @@ If it still fails:
 - `EPERM` / `EACCES` means Windows permissions, not PC Bridge.
 - `Refusing to remove ...` / `Refusing to move ...` is the destructive-target
   guard. Those system locations are blocked on purpose.
+- `Destination already exists` means the operation must pass `overwrite: true`
+  or choose a new path.
+- `oldText appears N times` means the edit was ambiguous. Add surrounding
+  context or set `replaceAll`.
+- `oldText was not found` means the file changed. Read it again and copy the
+  exact text.
 
 Turn it back off with **Return to workspace only** as soon as the task is done.
 
@@ -175,8 +238,12 @@ disable antivirus globally for this project.
 2. Delete `server\config.json`, `server\token.txt`, `logs\`, and optionally
    `workspace\`.
 3. Start the server again. A new token and config are generated. Full PC access
-   returns to off because it is stored in `config.json`.
+   returns to off and the custom-site list is empty because both live in
+   `config.json`.
 4. Paste the new token into the panel.
+5. Re-add any custom sites and grant browser access again. Browser permissions
+   survive a server reset, but the server no longer knows the origins until you
+   add them.
 
 This does not remove projects you moved elsewhere.
 

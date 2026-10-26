@@ -6,10 +6,11 @@
 <h3 align="center">Chat with AI. Build on your real PC.</h3>
 
 <p align="center">
-  A local-only bridge between a logged-in AI chat in your browser and your computer.<br>
-  The AI writes a command or file inside a fenced <code>bridge</code> block; the extension
-  executes it through a token-protected localhost server and posts the result
-  back into the chat automatically.
+  A local-only bridge between an AI chat in your browser and your computer.<br>
+  Built-in adapters cover DeepSeek, ChatGPT, Claude, Gemini, and Grok — and you can
+  add any other chat site from the dashboard. The AI writes commands or files inside
+  fenced <code>bridge</code> blocks; the extension runs them through a token-protected
+  localhost server and posts the results back into the chat automatically.
 </p>
 
 <p align="center">
@@ -32,15 +33,15 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/dashboard.png" alt="PC Bridge dashboard showing server status, access token, project location, file access, and activity log" width="920">
+  <img src="docs/assets/dashboard.png" alt="PC Bridge dashboard showing server status, access token, project location, file access, AI platforms, and activity log" width="920">
 </p>
 
 ---
 
 ## What it does
 
-You talk to DeepSeek (or another supported chat) like normal. When the AI needs
-your PC, it emits a structured block:
+You talk to an AI chat like normal. When the AI needs your PC, it emits a
+structured block:
 
 ```bridge
 {"tool":"exec","command":"npm install","cwd":"my-app","timeout":300}
@@ -52,8 +53,8 @@ finished.
 
 ```text
 ┌─────────────────────────┐
-│  Chrome: AI chat tab    │
-│  chat.deepseek.com      │
+│  Chromium: AI chat tab  │
+│  built-in or custom     │
 └────────────┬────────────┘
              │ fenced bridge command
              ▼
@@ -77,16 +78,25 @@ PC Bridge gives the model hands on the machine that actually does the work:
 - **Your files stay yours.** Projects are written to your disk. No cloud
   sandbox, no file upload, no hosted workspace.
 - **Nothing is exposed.** The server listens on loopback only, requires a random
-  token, and allowlists its own origin.
-- **You keep the keys.** Approve commands one by one, pause everything with one
-  click, or point the bridge at a different project folder at any time.
+  token, and accepts only built-in chat origins plus the custom sites you approve.
+- **You keep the keys.** Approve each batch, pause everything with one click, or
+  point the bridge at a different project folder at any time.
 - **Tiny and auditable.** One Node.js file with zero runtime dependencies, one
   readable Manifest V3 extension, and a local dashboard.
 
 ## Features
 
 - **Real local execution** — PowerShell commands, npm/npx, git, builds, tests.
-- **File tools** — read, write, list, move, remove, stat, and open folders.
+- **17 tools** — `exec`, `write`, `read`, `edit`, `list`, `mkdir`, `move`,
+  `copy`, `remove`, `stat`, `open`, `grep`, `find`, `hash`, `download`, `fetch`,
+  and `system`.
+- **Any AI chat site** — DeepSeek, ChatGPT, Claude, Gemini, and Grok work out of
+  the box. Add any other `http(s)` chat site from the dashboard or the extension
+  options page, then grant browser access to that site once.
+- **Faster, smoother loop** — a DOM-change watcher reacts as soon as an answer
+  settles, and the AI can run up to 8 independent operations per reply.
+- **Clearer failures** — tool errors include the exact path or reason, and the
+  bridge stops with an actionable notice on token, offline, or repeated failures.
 - **Optional full-PC file access** — unlock the file tools outside the workspace
   from the dashboard with a typed confirmation. Off by default.
 - **Automatic loop** — results are posted back to the chat without copy/paste.
@@ -94,29 +104,51 @@ PC Bridge gives the model hands on the machine that actually does the work:
 - **Approval mode** — optionally approve every command before it runs.
 - **Pause switch** — stop AI access instantly from the panel or dashboard.
 - **Command log** — full output stored under the workspace for inspection.
-- **Multi-site, best effort** — DeepSeek is the primary target; ChatGPT, Claude,
-  Gemini, and Grok adapters are included.
 - **Zero dependencies** — the server uses only Node.js built-ins.
 
 ## Supported chat sites
 
-| Site | Status | Default selectors |
+| Site | Status | Notes |
 | --- | --- | --- |
 | [DeepSeek](https://chat.deepseek.com) | Primary, tested | `.ds-markdown`, `textarea` |
 | [ChatGPT](https://chatgpt.com) | Best effort | auto |
 | [Claude](https://claude.ai) | Best effort | auto |
 | [Gemini](https://gemini.google.com) | Best effort | auto |
 | [Grok](https://grok.com) | Best effort | auto |
+| Any other `http(s)` chat site | Custom | Add it in the dashboard or options page, then grant access once |
 
 Site redesigns can break UI automation. Use **Advanced → selectors** in the
-panel or open an issue with the new selectors.
+panel, or open an issue with the new selectors. Custom sites use a generic DOM
+adapter first; manual selectors are available when a site needs them.
+
+## Any AI chat site
+
+There are three equivalent ways to add a site:
+
+1. **Dashboard → AI platforms** — type the site address, click **Add site**.
+2. **Extension options → AI sites** — click **Add & grant access**.
+3. **Toolbar icon on the site** — click the PC Bridge icon once. It grants
+   access for that origin and adds the site to both lists automatically.
+
+The server stores only the exact origin (for example `https://chat.example.com`,
+never a path or query string). Up to 50 custom sites can be configured. Removing
+a site from the server list does not remove the browser permission; revoke that
+separately in the extension options page.
+
+Browser access is intentionally separate from the server list:
+
+- The dashboard tells the server which origins may send requests.
+- Chrome's optional site permission lets the extension read and type into that
+  page.
+- You approve each site once. Nothing is granted globally, and built-in sites
+  need no extra prompt.
 
 ## Requirements
 
 - Windows 10 or 11
 - A Chromium browser: Chrome, Edge, Brave, Opera, or Vivaldi
 - [Node.js](https://nodejs.org/) **20 or newer**
-- A logged-in supported AI chat account
+- A logged-in AI chat account — a built-in site or any site you add
 
 ## Browser support
 
@@ -137,8 +169,10 @@ dashboard itself works in every modern browser.
 1. Install Node.js 20+ and download this repository.
 2. Double-click SETUP.bat.
 3. In the extension page: Developer mode → Load unpacked → extension folder.
-4. Open your AI chat, click the bridge bubble, paste the token, Connect.
-5. Flip Bridge on and ask for a project.
+4. Open a built-in chat, or add your own site in the dashboard and click the
+   PC Bridge toolbar icon on it once.
+5. Click the bridge bubble, paste the token, Connect.
+6. Flip Bridge on and ask for a project.
 ```
 
 `SETUP.bat` starts the server, opens the correct extension page for Chrome or
@@ -161,7 +195,8 @@ build to verify it works. Do not stop until the build passes.
 ```
 
 The AI should reply with **BRIDGE READY** after the initial verification, then
-start emitting one bridge block at a time.
+start emitting bridge blocks. It can batch up to 8 independent operations per
+reply; dependent steps wait for their result.
 
 ## Project location
 
@@ -186,11 +221,13 @@ needs files somewhere else, you can unlock the whole PC from the dashboard:
 
 While it is on:
 
-- `read`, `write`, `list`, `mkdir`, `move`, `remove`, `stat`, and `open` accept
-  absolute paths anywhere your Windows user can reach.
+- All file tools, including `read`, `write`, `edit`, `list`, `move`, `copy`,
+  `remove`, `grep`, `find`, `hash`, and `download`, accept absolute paths
+  anywhere your Windows user can reach.
 - Relative paths still resolve from the project location.
 - Drive roots, your user-profile root, Windows, Program Files, ProgramData, and
-  the Bridge app folders are still protected from **delete/move** operations.
+  the Bridge app folders are still protected from **delete, move, copy-over,
+  and download-overwrite** operations.
 - Windows permissions still apply.
 - The setting persists in `server/config.json` until you turn it off.
 
@@ -206,10 +243,15 @@ PC Bridge is a **power tool**, not a sandbox.
 - The server binds to `127.0.0.1` only and requires a 48-character token.
 - File tools are confined to the configured workspace **by default**; full PC
   access is an explicit, typed-confirmation opt-in.
+- CORS accepts known built-in origins, extension pages, localhost, and only the
+  exact custom origins you add (maximum 50).
+- Custom sites use Chrome's per-site optional permissions. The extension does
+  not receive broad host access at install time, and you can revoke a site at
+  any time.
 - The token is generated locally and stored in `server/token.txt` (git-ignored).
 - Shell commands are screened for a small set of catastrophic patterns, but the
   AI still runs with **your Windows permissions**.
-- Use **Auto-run off** to approve each command, and **Pause AI access** as a kill
+- Use **Auto-run off** to approve each batch, and **Pause AI access** as a kill
   switch.
 - Treat AI output as untrusted. Prompt injection in a webpage, repository, or
   dependency can try to turn a trusted chat into an attacker.
@@ -227,13 +269,14 @@ pc-bridge/
 ├── INSTALL-EXTENSION.bat     # open chrome://extensions + extension folder
 ├── extension/                # load this folder as an unpacked extension
 │   ├── manifest.json
-│   ├── background.js         # proxies API calls to 127.0.0.1
+│   ├── background.js         # API proxy + per-site grants and injection
 │   ├── content.js            # chat watcher + execution loop
-│   ├── adapters.js           # site-specific DOM adapters
-│   ├── shared.js             # protocol parser + prime message
-│   └── ui.js                 # in-page control panel
+│   ├── adapters.js           # built-in and generic/custom DOM adapters
+│   ├── shared.js             # protocol parser, tool catalog, prime message
+│   ├── ui.js                 # in-page control panel
+│   └── options.html/.css/.js # extension settings + custom-site access
 ├── server/
-│   ├── server.js             # HTTP API, tools, and safety checks
+│   ├── server.js             # HTTP API, tools, platform allowlist, safety checks
 │   ├── config.example.json   # documented defaults
 │   └── public/               # local dashboard
 ├── dev/                      # mock chat page for offline testing
@@ -268,7 +311,9 @@ guidelines.
 ## Troubleshooting
 
 The short version: restart `START-BRIDGE.bat`, click **Connect**, then
-**Re-send protocol**. For everything else, see
+**Re-send protocol**. For a custom site that shows no panel, add it in the
+dashboard, grant access in the extension options page, reload the tab, and
+click the PC Bridge toolbar icon. For everything else, see
 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## Star the project

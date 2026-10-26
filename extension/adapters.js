@@ -79,19 +79,36 @@
         '.ds-markdown',
         '[data-message-author-role="assistant"]',
         '[data-testid="assistant-message"]',
+        '[data-role="assistant"]',
+        '[data-message-role="assistant"]',
+        '[data-author="assistant"]',
         'model-response',
+        'message-content',
+        '[class*="assistant-message"]',
+        '[class*="bot-message"]',
         '.markdown',
+        '.prose',
         '[class*="assistant"]',
         'article'
       ],
-      assistantExclude: ['[data-message-author-role="user"]', '[data-testid="user-message"]', 'user-query'],
+      assistantExclude: ['[data-message-author-role="user"]', '[data-testid="user-message"]', 'user-query', '[data-role="user"]'],
       composer: ['textarea', 'div[contenteditable="true"]', '[contenteditable="true"]'],
       send: ['[data-testid="send-button"]', 'button[aria-label*="Send" i]', 'button[type="submit"]', 'div[role="button"][class*="send"]'],
-      stop: ['[data-testid="stop-button"]', 'button[aria-label*="Stop" i]']
+      stop: [
+        '[data-testid="stop-button"]',
+        'button[aria-label*="Stop" i]',
+        'button[aria-label*="Cancel" i]',
+        'button[data-testid*="stop" i]'
+      ]
     }
   ];
 
   const compose = (list) => list.join(',');
+  let assistantCache = null;
+
+  function invalidate() {
+    assistantCache = null;
+  }
 
   function profile() {
     const host = location.hostname;
@@ -335,18 +352,26 @@
       } catch {
         continue;
       }
-      found = found.filter((el) => {
-        if (!isVisible(el)) return false;
-        if (!textOf(el)) return false;
-        if (insideExcluded(el, exclude)) return false;
-        return true;
-      });
-      if (found.length) return found;
+      // The newest answer is at the end. Scan backwards so a busy chat does not
+      // pay for text extraction on every older message.
+      for (let i = found.length - 1; i >= 0; i--) {
+        const el = found[i];
+        if (!isVisible(el)) continue;
+        if (insideExcluded(el, exclude)) continue;
+        const text = textOf(el);
+        if (!text) continue;
+        return [{ el, text }];
+      }
     }
     return [];
   }
 
   function getLastAssistant() {
+    const now = Date.now();
+    if (assistantCache && assistantCache.at > now - 250 && assistantCache.node && assistantCache.node.isConnected) {
+      return assistantCache.result;
+    }
+
     const p = profile();
     const sel = overrides();
     const assistantSelectors = sel.assistant ? splitSelectors(sel.assistant) : p.assistant;
@@ -358,15 +383,19 @@
       nodes = collectAssistant(generic.assistant, [...p.assistantExclude, ...generic.assistantExclude]);
     }
 
-    if (!nodes.length) return null;
-    const node = nodes[nodes.length - 1];
-    const text = textOf(node);
-    return {
-      node,
+    if (!nodes.length) {
+      assistantCache = null;
+      return null;
+    }
+    const { el, text } = nodes[0];
+    const result = {
+      node: el,
       text,
       generating: isGenerating(),
       profile: p.name
     };
+    assistantCache = { at: now, node: el, result };
+    return result;
   }
 
   function isComposerEmpty(composer) {
@@ -433,11 +462,20 @@
     }
   }
 
+  async function waitForEmpty(composer, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (isComposerEmpty(composer)) return true;
+      await PCB.sleep(80);
+    }
+    return isComposerEmpty(composer);
+  }
+
   async function sendMessage(text) {
     for (let attempt = 0; attempt < 7; attempt++) {
       const composer = findComposer();
       if (!composer) {
-        await PCB.sleep(600);
+        await PCB.sleep(450);
         continue;
       }
       if (!isComposerEmpty(composer)) {
@@ -445,7 +483,7 @@
       }
 
       setComposerText(composer, text);
-      await PCB.sleep(220);
+      await PCB.sleep(160);
 
       const btn = findSendButton(composer);
       if (btn) {
@@ -458,12 +496,10 @@
         pressEnter(composer);
       }
 
-      await PCB.sleep(650);
-      if (isComposerEmpty(composer)) return { ok: true };
+      if (await waitForEmpty(composer, 700)) return { ok: true };
 
       pressEnter(composer);
-      await PCB.sleep(550);
-      if (isComposerEmpty(composer)) return { ok: true };
+      if (await waitForEmpty(composer, 600)) return { ok: true };
 
       // Last resort: click a freshly located button.
       const btn2 = findSendButton(composer);
@@ -473,8 +509,7 @@
         } catch {
           /* ignore */
         }
-        await PCB.sleep(500);
-        if (isComposerEmpty(composer)) return { ok: true };
+        if (await waitForEmpty(composer, 600)) return { ok: true };
       }
     }
     return { ok: false, reason: 'failed' };
@@ -505,6 +540,7 @@
     sendMessage,
     hasPrimeInPage,
     composerHasDraft,
-    isVisible
+    isVisible,
+    invalidate
   };
 })();

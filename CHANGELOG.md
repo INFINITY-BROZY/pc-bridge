@@ -6,6 +6,74 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-10-26
+
+### Added
+
+- **Dashboard AI platforms card.** Add, list, open, and remove custom chat
+  sites. Custom sites are stored as exact `http(s)` origins in
+  `config.customPlatforms` (up to 50) and persisted across restarts.
+- `GET/POST /api/platforms` with `add`, `remove`, and `clear` actions, origin
+  validation, duplicate/built-in detection, and dynamic CORS approval for
+  custom origins.
+- **Extension options page** with server/token testing, the full site list,
+  per-site access status, and grant/revoke controls.
+- **Any-site support.** A toolbar click on an unlisted chat site requests
+  access for that origin, adds it to the server list, registers a dynamic
+  content script, and shows the panel. A generic DOM adapter plus manual
+  selector overrides handle custom site layouts.
+- Eight new server tools: `edit`, `grep`, `find`, `copy`, `hash`, `download`,
+  `fetch`, and `system` (17 tools total).
+- Substantial upgrades to existing tools: append mode and 8 MB guard for
+  `write`; line ranges, byte caps, and binary detection for `read`; recursive
+  depth/limit controls for `list`; overwrite/type/self-nesting guards for
+  `move`; symlink and timestamp detail for `stat`.
+- **Batched operations.** Up to 8 independent bridge blocks in one AI reply are
+  executed in order, with all results returned together.
+- Adaptive `MutationObserver` watching, faster settling/polling, and an
+  assistant-result cache for quicker reactions and less DOM churn.
+- Richer result formatting (HTTP status, path, truncation, duration) and
+  clearer stop conditions for token, offline, and repeated failures.
+- Expanded dependency-free smoke coverage for platforms, custom CORS, all new
+  tools, file guards, fetch/download limits, system info, workspace changes,
+  full PC access, and pause.
+
+### Changed
+
+- Manifest is now `1.3.0` and adds `scripting` plus optional `http(s)` host
+  permissions. Built-in sites still load through static content scripts.
+- Prime message documents the full 17-tool catalog, batching, and current file
+  access mode.
+- Dashboard subtitle, setup steps, and platform guidance no longer assume
+  Chrome-only or DeepSeek-only use.
+- README, protocol, architecture, install, troubleshooting, and security docs
+  describe custom sites, the new tools, and batching.
+
+### Fixed
+
+- Built-in chat sites no longer trigger unnecessary per-site permission
+  prompts or injection failures.
+- The options page marks built-in sites as ready and shows custom access as
+  allowed or needing access.
+- A failed “add site” now rolls back browser access when the server rejects the
+  origin.
+- Options saves merge with existing storage, so tokens and custom sites are not
+  lost when saving settings from different tabs.
+- Open chat tabs apply settings changes live, including server/token changes.
+- `download` refuses to overwrite a folder destination.
+- `copy`, `move`, `remove`, `read`, `edit`, `grep`, `find`, `hash`, and
+  `download` now fail with specific messages for missing, binary, oversized,
+  ambiguous, or unsafe inputs.
+
+### Security
+
+- Custom origins are accepted only after explicit addition and exact-origin
+  validation; no wildcard remote origin is added to CORS.
+- Browser access remains opt-in per site through Chrome's optional host
+  permissions. Revoking access unregisters the dynamic content script.
+- The localhost-only server, token authentication, workspace confinement, and
+  optional full-PC access model are unchanged.
+
 ## [1.2.0] — 2026-10-25
 
 ### Added

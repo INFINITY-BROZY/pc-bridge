@@ -8,6 +8,10 @@ expose a computer to the internet.
 
 - The server listens on `127.0.0.1` only.
 - Every API call requires the local token.
+- CORS accepts built-in chat origins, extension pages, localhost, and only the
+  exact custom origins you add (maximum 50).
+- Browser access to a custom site is a separate per-origin grant. Nothing is
+  granted globally at install time.
 - File tools are confined to the configured workspace **by default**.
 - Full PC file access is an explicit opt-in that requires typing a confirmation
   phrase in the dashboard.
@@ -21,7 +25,8 @@ expose a computer to the internet.
 
 | Threat | Mitigation |
 | --- | --- |
-| Random websites calling the API | Localhost bind, CORS allowlist, token required. |
+| Random websites calling the API | Localhost bind, exact-origin CORS allowlist, token required. |
+| An unapproved chat site reading the page or calling the API | Extension host access is opt-in per origin; the server accepts only approved custom origins. |
 | Another user on the network | No network listener; loopback only. |
 | File tools escaping into personal files | By default `resolveInside()` rejects `..` and outside absolute paths. |
 | Accidental full-PC enablement | Off by default; typed confirmation; persistent dashboard banner; delete/move guards for OS roots. |
@@ -44,6 +49,9 @@ expose a computer to the internet.
   not eliminate this.
 - **A compromised browser profile or extension.** Malware with access to your
   Chrome profile or token can call the API.
+- **A malicious site you approve.** If you grant browser access to a site and add
+  it to the server, its page can interact with the bridge like any supported
+  chat. Only approve sites you trust.
 - **Symlinks/junctions.** Path confinement does not canonicalize links placed
   inside the workspace.
 - **Other local users or processes.** The token file is protected by filesystem
@@ -57,11 +65,13 @@ disabled by default and requires the exact confirmation string `FULL PC ACCESS`.
 
 When enabled:
 
-- `read`, `write`, `list`, `mkdir`, `move`, `remove`, `stat`, and `open` accept
+- All file tools (`read`, `write`, `edit`, `list`, `mkdir`, `move`, `copy`,
+  `remove`, `stat`, `open`, `grep`, `find`, `hash`, and `download`) accept
   absolute paths anywhere the Windows user can reach.
 - Relative paths still resolve from the workspace.
 - Drive roots, the user-profile root, Windows, Program Files, ProgramData, and
-  the Bridge application folders are refused for **delete and move**.
+  the Bridge application folders are refused for **delete, move, copy-over, and
+  download-overwrite** operations.
 - Writes still obey Windows ACLs, but the workspace boundary no longer applies.
 - The setting is persisted in `server/config.json` across restarts.
 
@@ -107,6 +117,7 @@ without a bug bounty.
 - [ ] Auto-run is off for unfamiliar models/repositories.
 - [ ] Workspace points at a dedicated projects folder.
 - [ ] Full PC access is off unless actively needed.
+- [ ] Only chat sites you trust have custom-site browser access.
 - [ ] Port 8787 is not exposed through a tunnel, proxy, or firewall rule.
 - [ ] Dashboard is closed when not needed.
 - [ ] Server is stopped when not in use.
